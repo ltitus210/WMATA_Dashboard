@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wmata-arrival-dashboard"
+version = "1.0.0"
+description = "Always-on Raspberry Pi WMATA arrivals dashboard"
+requires-python = ">=3.13"
+dependencies = [
+  "Flask>=3.1,<4",
+  "requests>=2.32,<3",
+  "python-dotenv>=1.0,<2",
+  "waitress>=3.0,<4",
+  "protobuf>=5.29,<7",
+  "gtfs-realtime-bindings>=1.0,<2",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3,<9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

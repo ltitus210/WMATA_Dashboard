@@ -1,0 +1,16 @@
+[Unit]
+Description=WMATA Chromium kiosk
+After=graphical-session.target wmata-dashboard.service
+Wants=wmata-dashboard.service
+
+[Service]
+User=pi
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+ExecStart=/usr/bin/chromium --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble http://127.0.0.1:8080/dashboard/home
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target
+

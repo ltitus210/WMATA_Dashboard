@@ -1,0 +1,21 @@
+[Unit]
+Description=WMATA arrival dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/wmata-dashboard
+EnvironmentFile=/opt/wmata-dashboard/.env
+ExecStart=/opt/wmata-dashboard/.venv/bin/waitress-serve --host=0.0.0.0 --port=8080 --call app:create_app
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Configure · WMATA Display{% endblock %}
+{% block body %}
+<header class="topbar">
+  <div><p class="eyebrow">WMATA DISPLAY</p><h1>Configuration</h1></div>
+  <nav><a href="{{ url_for('main.diagnostics') }}">Diagnostics</a></nav>
+</header>
+<main class="admin-grid">
+  <section class="panel intro-panel">
+    <p class="eyebrow">DISPLAY PROFILES</p>
+    <h2>One board, many rooms.</h2>
+    <p class="muted">Each profile has its own URL and independent display settings.</p>
+    <form class="inline-form" method="post" action="{{ url_for('main.create_profile') }}">
+      <label>Name<input name="name" required placeholder="Kitchen"></label>
+      <label>URL slug<input name="slug" placeholder="kitchen"></label>
+      <button>Create profile</button>
+    </form>
+  </section>
+  {% for profile in profiles %}
+  <section class="panel profile-panel">
+    <div class="panel-title">
+      <div><p class="eyebrow">PROFILE / {{ profile.slug|upper }}</p><h2>{{ profile.name }}</h2></div>
+      <a class="button secondary" href="{{ url_for('main.dashboard', slug=profile.slug) }}">Open board ↗</a>
+    </div>
+    <form class="settings-grid" method="post" action="{{ url_for('main.update_profile', profile_id=profile.id) }}">
+      <label>Name<input name="name" value="{{ profile.name }}" required></label>
+      <label>Display<select name="display_type"><option value="lcd" {{ 'selected' if profile.display_type=='lcd' }}>LCD / HDMI</option><option value="eink_mono" {{ 'selected' if profile.display_type=='eink_mono' }}>Monochrome e-Ink</option><option value="eink_color" {{ 'selected' if profile.display_type=='eink_color' }}>Color e-Ink</option></select></label>
+      <label>Theme<select name="theme"><option value="dark" {{ 'selected' if profile.theme=='dark' }}>Dark</option><option value="light" {{ 'selected' if profile.theme=='light' }}>Light</option></select></label>
+      <label>Layout<select name="layout"><option value="row" {{ 'selected' if profile.layout=='row' }}>Rows</option><option value="card" {{ 'selected' if profile.layout=='card' }}>Stop cards</option></select></label>
+      <label>Arrivals<input type="number" min="1" max="10" name="arrival_count" value="{{ profile.arrival_count }}"></label>
+      <label>Minutes<select name="minute_format">{% for value in ['m','min','minutes'] %}<option {{ 'selected' if profile.minute_format==value }}>{{ value }}</option>{% endfor %}</select></label>
+      <label>Under one minute<select name="near_format">{% for value in ['DUE','ARR','NOW','<1','actual'] %}<option value="{{ value }}" {{ 'selected' if profile.near_format==value }}>{{ value }}</option>{% endfor %}</select></label>
+      <label>Scheduled marker<select name="scheduled_format">{% for value,label in [('s','s'),('superscript','ˢ'),('(s)','(s)'),('Scheduled','Scheduled')] %}<option value="{{ value }}" {{ 'selected' if profile.scheduled_format==value }}>{{ label }}</option>{% endfor %}</select></label>
+      <label>Stale marker<select name="stale_format">{% for value in ['?','﹖','Stale'] %}<option value="{{ value }}" {{ 'selected' if profile.stale_format==value }}>{{ value }}</option>{% endfor %}</select></label>
+      <label>Stale after (sec)<input type="number" min="30" max="3600" name="stale_threshold" value="{{ profile.stale_threshold }}"></label>
+      <label>Browser refresh (sec)<input type="number" min="10" max="600" name="refresh_interval" value="{{ profile.refresh_interval }}"></label>
+      <div class="check-row"><label><input type="checkbox" name="show_bus" {{ 'checked' if profile.show_bus }}> Bus</label><label><input type="checkbox" name="show_rail" {{ 'checked' if profile.show_rail }}> Rail</label><label><input type="checkbox" name="show_legend" {{ 'checked' if profile.show_legend }}> Legend</label><label><input type="checkbox" name="show_occupancy" {{ 'checked' if profile.show_occupancy }}> Occupancy</label></div>
+      <button>Save settings</button>
+    </form>
+    <div class="entry-list">
+      {% for entry in entries[profile.id] %}
+      <article class="entry-item">
+        <span class="mode-badge">{{ entry.mode }}</span>
+        <div><strong>{{ entry.location_name }}</strong><p>{{ entry.route }}{% if entry.destination %} → {{ entry.destination }}{% endif %}{% if entry.direction %} · direction {{ entry.direction }}{% endif %}</p></div>
+        <div class="entry-actions">
+          <form method="post" action="{{ url_for('main.move_entry', entry_id=entry.id) }}"><input type="hidden" name="direction" value="up"><button class="icon-button" title="Move up">↑</button></form>
+          <form method="post" action="{{ url_for('main.move_entry', entry_id=entry.id) }}"><input type="hidden" name="direction" value="down"><button class="icon-button" title="Move down">↓</button></form>
+          <form method="post" action="{{ url_for('main.delete_entry', entry_id=entry.id) }}"><button class="icon-button danger" title="Delete">×</button></form>
+        </div>
+      </article>
+      <details class="edit-entry"><summary>Edit {{ entry.route or entry.location_id }}</summary>
+        <form class="settings-grid entry-form" method="post" action="{{ url_for('main.update_entry', entry_id=entry.id) }}">
+          <label>Mode<select name="mode"><option value="bus" {{ 'selected' if entry.mode=='bus' }}>Metrobus</option><option value="rail" {{ 'selected' if entry.mode=='rail' }}>Metrorail</option></select></label>
+          <label>ID<input name="location_id" value="{{ entry.location_id }}" required></label><label>Name<input name="location_name" value="{{ entry.location_name }}" required></label>
+          <label>Route / line<input name="route" value="{{ entry.route }}"></label><label>Direction<input name="direction" value="{{ entry.direction }}"></label><label>Destination<input name="destination" value="{{ entry.destination }}"></label><label>Label<input name="label" value="{{ entry.label }}"></label>
+          <label class="enabled-check"><input type="checkbox" name="enabled" {{ 'checked' if entry.enabled }}> Enabled</label><button>Save row</button>
+        </form>
+      </details>
+      {% else %}<p class="empty">No entries yet. Add one below.</p>{% endfor %}
+    </div>
+    <details class="add-entry"><summary>Add an arrival row</summary>
+      <form class="settings-grid entry-form" method="post" action="{{ url_for('main.create_entry') }}">
+        <input type="hidden" name="profile_id" value="{{ profile.id }}">
+        <label>Mode<select name="mode"><option value="bus">Metrobus</option><option value="rail">Metrorail</option></select></label>
+        <label>Stop ID / station code<input name="location_id" required placeholder="1001234 or A01"></label>
+        <label>Display name<input name="location_name" required placeholder="14th St & Irving St NW"></label>
+        <label>Route / line<input name="route" placeholder="S2 or RD"></label>
+        <label>Direction / group<input name="direction" placeholder="0"></label>
+        <label>Destination<input name="destination" placeholder="Federal Triangle"></label>
+        <label>Optional label<input name="label"></label>
+        <button>Add row</button>
+      </form>
+      <div class="discover-box">
+        <label>Look up a bus StopID<input class="discover-id" placeholder="Enter StopID"></label>
+        <button type="button" class="secondary discover-button">Discover routes & destinations</button>
+        <pre class="discover-result">Results will appear here.</pre>
+      </div>
+      <div class="discover-box rail-discover"><span>Need a station code?</span><button type="button" class="secondary stations-button">List Metrorail stations</button><pre class="stations-result">Station results will appear here.</pre></div>
+    </details>
+  </section>
+  {% endfor %}
+</main>
+<script src="{{ url_for('static', filename='admin.js') }}"></script>
+{% endblock %}

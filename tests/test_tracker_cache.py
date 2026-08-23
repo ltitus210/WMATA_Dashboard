@@ -1,0 +1,55 @@
+from datetime import UTC, datetime, timedelta
+
+from app.database import Database
+from app.vehicles.state_tracker import VehicleStateTracker, distance_m
+
+
+def make_db(tmp_path):
+    database = Database(str(tmp_path / "test.sqlite3"))
+    database.initialize()
+    return database
+
+
+def test_cache_expiration(tmp_path):
+    db = make_db(tmp_path)
+    db.put_cache("test", "one", {"ok": True}, -1, "mock")
+    assert db.get_cache("test", "one")["expired"] is True
+
+
+def test_profile_defaults_are_independent(tmp_path):
+    db = make_db(tmp_path)
+    db.seed_default_profile()
+    home = db.profile("home")
+    assert home["arrival_count"] == 3 and home["layout"] == "row"
+
+
+def test_distance_and_state_thresholds():
+    assert distance_m(38.9, -77.0, 38.9, -77.0) == 0
+    assert VehicleStateTracker.classify(30) == "at_stop"
+    assert VehicleStateTracker.classify(80) == "near_stop"
+    assert VehicleStateTracker.classify(200, 80) == "passed"
+
+
+def test_passage_requires_prediction_disappearance(tmp_path):
+    db = make_db(tmp_path)
+    tracker = VehicleStateTracker(db)
+    stop = {"StopID":"1000001","Lat":38.9,"Lon":-77.0}
+    near = {"VehicleID":"1","TripID":"t","RouteID":"S2","Lat":38.9002,"Lon":-77.0}
+    far = {**near,"Lat":38.902}
+    tracker.observe(stop, near, 0.5, True)
+    not_passed = tracker.observe(stop, far, 0, True)
+    assert not_passed["state"] == "approaching"
+
+
+def test_conservative_passage_and_last_bus(tmp_path):
+    db = make_db(tmp_path)
+    tracker = VehicleStateTracker(db)
+    stop = {"StopID":"1000001","Lat":38.9,"Lon":-77.0}
+    near = {"VehicleID":"1","TripID":"t","RouteID":"S2","TripHeadsign":"Federal Triangle","Lat":38.9002,"Lon":-77.0}
+    far = {**near,"Lat":38.902}
+    tracker.observe(stop, near, 0.5, True)
+    result = tracker.observe(stop, far, None, False)
+    assert result["state"] == "passed" and result["confidence"] == "high"
+    last = tracker.last_bus("1000001", "S2", "Federal Triangle")
+    assert last is not None and last["trip_id"] == "t"
+
