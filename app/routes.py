@@ -5,6 +5,7 @@ from functools import wraps
 import hmac
 import json
 import logging
+import threading
 import re
 import time
 from zoneinfo import ZoneInfo
@@ -145,12 +146,14 @@ def admin():
     key_source = "not configured"
     if client().api_key:
         key_source = "environment" if environment_api_key and client().api_key == environment_api_key else "web interface"
+    log_status = current_app.extensions["log_manager"].status()
     return render_template("admin.html", profiles=profiles,
                            entries={p["id"]: db().entries(p["id"]) for p in profiles},
                            api_key_configured=bool(client().api_key),
                            api_key_source=key_source, web_api_key_stored=bool(stored_api_key),
                            environment_api_key_configured=bool(environment_api_key),
-                           admin_auth_enabled=bool(current_app.config["SETTINGS"].admin_user))
+                           admin_auth_enabled=bool(current_app.config["SETTINGS"].admin_user),
+                           log_status=log_status, logs_purged=request.args.get("logs_purged"))
 
 
 @bp.post("/admin/api-key")
@@ -173,6 +176,31 @@ def update_api_key():
         db().set_meta("last_api_key_change", utcnow().isoformat())
         LOG.info("Updated WMATA API key through the administration interface")
     return redirect(url_for("main.admin"))
+
+
+@bp.post("/admin/logs/purge")
+@protected
+def purge_logs():
+    count = current_app.extensions["log_manager"].purge()
+    db().set_meta("last_log_purge", {"at": utcnow().isoformat(), "files_removed": count})
+    LOG.info("Purged %s application log file(s)", count)
+    return redirect(url_for("main.admin", logs_purged=count))
+
+
+def _delayed_shutdown(handler, app) -> None:
+    time.sleep(1)
+    handler(app)
+
+
+@bp.post("/admin/shutdown")
+@protected
+def shutdown():
+    app = current_app._get_current_object()
+    handler = current_app.config["SHUTDOWN_HANDLER"]
+    threading.Thread(target=_delayed_shutdown, args=(handler, app),
+                     name="wmata-shutdown", daemon=True).start()
+    LOG.warning("Clean application shutdown requested from the administration interface")
+    return render_template("shutdown.html"), 202
 
 
 def _slug(value: str) -> str:

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Stopping · WMATA Display{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">{% endblock %}
+{% block body %}
+<main class="shutdown-message">
+  <p class="eyebrow">WMATA DISPLAY</p>
+  <h1>Stopping cleanly.</h1>
+  <p>Background polling is being stopped and the server will shut down momentarily. You may close this page.</p>
+  <p class="field-note">To start it again under systemd: <code>sudo systemctl start wmata-dashboard</code></p>
+</main>
+{% endblock %}

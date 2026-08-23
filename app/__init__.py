@@ -2,17 +2,29 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 import time
 
 from flask import Flask
 
 from .config import Settings
 from .database import Database
+from .logging_manager import LogManager
 from .polling import PollingManager
 from .routes import bp
 from .wmata.client import WMATAClient
 
 VERSION = "1.0.0"
+
+
+def shutdown_application(app: Flask) -> None:
+    """Stop background work, flush logs, and terminate the server process."""
+    poller = app.extensions.get("poller")
+    if poller:
+        poller.stop()
+    logging.getLogger(__name__).info("Application shutdown requested from administration interface")
+    logging.shutdown()
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 def create_app(overrides: dict | None = None) -> Flask:
@@ -24,6 +36,7 @@ def create_app(overrides: dict | None = None) -> Flask:
         SETTINGS=settings,
         STARTED_MONOTONIC=time.monotonic(),
         VERSION=VERSION,
+        SHUTDOWN_HANDLER=shutdown_application,
     )
     if overrides:
         app.config.update(overrides)
@@ -35,6 +48,10 @@ def create_app(overrides: dict | None = None) -> Flask:
         level=getattr(logging, settings.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    log_file = settings.log_file or str(os.path.join(os.path.dirname(settings.database_path), "logs", "wmata-dashboard.log"))
+    log_manager = LogManager(log_file, settings.log_max_bytes,
+                             settings.log_backup_count, settings.log_level)
+    app.extensions["log_manager"] = log_manager
     db = Database(settings.database_path)
     db.initialize()
     db.seed_default_profile()

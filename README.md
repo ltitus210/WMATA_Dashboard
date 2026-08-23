@@ -43,6 +43,7 @@ application restart.
 - Short-lived vehicle history and conservative last-bus inference
 - Optional HTTP Basic authentication for admin and diagnostics
 - Diagnostics for uptime, local time, WMATA requests, cache, and vehicle evidence
+- Confirmed, clean server shutdown from the protected administration interface
 - systemd backend and Chromium kiosk units
 
 ## Architecture and data correctness
@@ -125,6 +126,9 @@ Environment variables are documented in `.env.example`:
 | `WMATA_POLL_INTERVAL` | `20` | Central poll cadence in seconds (minimum 10) |
 | `WMATA_START_POLLER` | `true` | Disable for tests or one-shot management |
 | `WMATA_LOG_LEVEL` | `INFO` | Python logging level |
+| `WMATA_LOG_FILE` | `instance/logs/wmata-dashboard.log` | Rotating application log |
+| `WMATA_LOG_MAX_BYTES` | `2000000` | Bytes before log rotation |
+| `WMATA_LOG_BACKUP_COUNT` | `3` | Number of rotated logs retained |
 | `WMATA_SECRET_KEY` | development value | Set a random production value |
 
 The API key is only read server-side and is never emitted in HTML or JSON.
@@ -205,6 +209,19 @@ Useful URLs:
 - `/diagnostics` — requests, cache and vehicle evidence
 - `/health` — lightweight process health JSON
 - `/api/dashboard/<slug>` — local dashboard state consumed by browsers
+
+The bottom of `/admin` includes a **Stop dashboard** control. After confirmation,
+it stops the central polling thread, flushes logging, returns a shutdown status
+page, and terminates the server process with `SIGTERM`. With the supplied systemd
+unit's `Restart=on-failure`, an intentional clean stop stays stopped; restart it
+with `sudo systemctl start wmata-dashboard`. Protect the admin page before making
+it available outside a trusted LAN.
+
+The same System panel includes **Purge log files**. After confirmation, the app
+closes its rotating file handler, removes only `wmata-dashboard.log` and its
+numbered rotated backups, then opens a fresh owner-only log. It does not delete
+other files in the log directory. Log files and rotated backups are excluded by
+`.gitignore`.
 
 The JSON dashboard endpoint is intentionally an application view, not a proxy for
 the raw WMATA API.

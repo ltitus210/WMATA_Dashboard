@@ -23,6 +23,13 @@ class PollingManager:
     def start(self) -> None:
         self.thread.start()
 
+    def stop(self, timeout: float = 5) -> None:
+        """Ask the polling loop to exit and wait briefly for a clean stop."""
+        self.stop_event.set()
+        if self.thread.is_alive() and threading.current_thread() is not self.thread:
+            self.thread.join(timeout=timeout)
+        LOG.info("Central WMATA poller stopped")
+
     def _run(self) -> None:
         self.running = True
         LOG.info("Central WMATA poller started")

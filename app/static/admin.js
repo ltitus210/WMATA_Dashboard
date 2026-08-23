@@ -20,3 +20,17 @@ document.querySelectorAll('.rail-discover').forEach(box => {
     } catch (error) { output.textContent = `Lookup failed: ${error}`; }
   });
 });
+document.querySelectorAll('.shutdown-form').forEach(form => {
+  form.addEventListener('submit', event => {
+    if (!window.confirm('Stop the WMATA dashboard server? All displays will go offline until it is started again.')) {
+      event.preventDefault();
+    }
+  });
+});
+document.querySelectorAll('.purge-logs-form').forEach(form => {
+  form.addEventListener('submit', event => {
+    if (!window.confirm('Permanently delete the current WMATA dashboard log and all rotated backups?')) {
+      event.preventDefault();
+    }
+  });
+});
