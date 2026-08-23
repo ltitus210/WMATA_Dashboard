@@ -103,9 +103,11 @@ malformed responses, and systemd restarts the service after process failure.
 
 All comparisons use aware datetimes. WMATA local timestamps are attached to
 `America/New_York`; explicit offsets are preserved and values are normalized to
-UTC internally. The poller caches yesterday, today, and tomorrow around midnight,
-then filters the actual returned timestamps. This handles DST and service crossing
-midnight without assuming 00:00 begins a new transit service day.
+UTC internally. The poller caches the current and previous service dates, then
+filters the actual returned timestamps. Together they cover service crossing
+midnight without assuming 00:00 begins a new transit service day. WMATA sometimes
+returns HTTP 400 with “No schedule data available for this date”; that specific
+response is cached as an empty schedule while real-time polling continues.
 
 ### Occupancy
 

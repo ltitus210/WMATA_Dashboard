@@ -51,9 +51,11 @@ optional dependency: legacy JSON remains usable on a small Pi without it.
   meaningful status values. PIDS train IDs cannot reliably be joined to the Train
   Positions API, per WMATA's Train Position FAQ, so rail arrival state uses PIDS.
 - Legacy schedule timestamps are parsed as timezone-aware America/New_York values.
-  ISO timestamps carrying offsets preserve them. Service dates query yesterday,
-  today, and tomorrow around midnight; after-midnight trips are normalized by the
-  returned timestamp, never by naive wall-clock comparison.
+  ISO timestamps carrying offsets preserve them. Current and previous service
+  dates cover trips crossing midnight; after-midnight trips are normalized by the
+  returned timestamp, never by naive wall-clock comparison. WMATA's explicit
+  “No schedule data available for this date” response is cached as an empty
+  fallback set rather than treated as a failed real-time polling cycle.
 
 ## Architecture
 

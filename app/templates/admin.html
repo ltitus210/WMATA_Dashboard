@@ -63,7 +63,7 @@
         <form class="settings-grid entry-form" method="post" action="{{ url_for('main.update_entry', entry_id=entry.id) }}">
           <label>Mode<select name="mode"><option value="bus" {{ 'selected' if entry.mode=='bus' }}>Metrobus</option><option value="rail" {{ 'selected' if entry.mode=='rail' }}>Metrorail</option></select></label>
           <label>ID<input name="location_id" value="{{ entry.location_id }}" required></label><label>Name<input name="location_name" value="{{ entry.location_name }}" required></label>
-          <label>Route / line<input name="route" value="{{ entry.route }}"></label><label>Direction<input name="direction" value="{{ entry.direction }}"></label><label>Destination<input name="destination" value="{{ entry.destination }}"></label><label>Label<input name="label" value="{{ entry.label }}"></label>
+          <label>Route / line<input name="route" value="{{ entry.route }}" placeholder="S2 or GR/YL"></label><label>Direction / rail group<input name="direction" value="{{ entry.direction }}" placeholder="Bus: 0/1 · Rail: 1/2 or blank"></label><label>Destination<input name="destination" value="{{ entry.destination }}"></label><label>Label<input name="label" value="{{ entry.label }}"></label>
           <label class="enabled-check"><input type="checkbox" name="enabled" {{ 'checked' if entry.enabled }}> Enabled</label><button>Save row</button>
         </form>
       </details>
@@ -75,8 +75,8 @@
         <label>Mode<select name="mode"><option value="bus">Metrobus</option><option value="rail">Metrorail</option></select></label>
         <label>Stop ID / station code<input name="location_id" required placeholder="1001234 or A01"></label>
         <label>Display name<input name="location_name" required placeholder="14th St & Irving St NW"></label>
-        <label>Route / line<input name="route" placeholder="S2 or RD"></label>
-        <label>Direction / group<input name="direction" placeholder="0"></label>
+        <label>Route / line<input name="route" placeholder="S2 or GR/YL"></label>
+        <label>Direction / rail group<input name="direction" placeholder="Bus: 0/1 · Rail: 1/2 or blank"></label>
         <label>Destination<input name="destination" placeholder="Federal Triangle"></label>
         <label>Optional label<input name="label"></label>
         <button>Add row</button>

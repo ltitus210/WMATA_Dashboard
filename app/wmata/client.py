@@ -57,6 +57,18 @@ class WMATAClient:
                 timeout=(4, 12),
             )
             latency = (time.monotonic() - started) * 1000
+            if name == "stop_schedule" and response.status_code == 400:
+                try:
+                    message = str(response.json().get("Message", ""))
+                except ValueError:
+                    message = ""
+                if "no schedule data available" in message.lower():
+                    self.db.put_cache(name, key, [], ttl, self.BASE + path,
+                                      response.status_code, latency)
+                    self.db.set_meta("last_schedule_unavailable", {"key": key, "message": message})
+                    result = self.db.get_cache(name, key)
+                    assert result is not None
+                    return result
             response.raise_for_status()
             body = response.json()
             payload: Any = body.get(payload_key, []) if payload_key else body
@@ -153,4 +165,11 @@ class WMATAClient:
             key = (str(row.get("RouteID", "")), str(row.get("DirectionNum", "")), str(row.get("TripHeadsign", "")))
             variants[key] = {"route": key[0], "direction": key[1], "destination": key[2],
                              "direction_text": row.get("TripDirectionText", "")}
-        return {"stop": stop, "variants": sorted(variants.values(), key=lambda x: (x["route"], x["direction"], x["destination"]))}
+        prediction_payload = self.predictions(stop_id, force)["payload"]
+        predictions = prediction_payload.get("Predictions", []) if isinstance(prediction_payload, dict) else []
+        for row in predictions:
+            key = (str(row.get("RouteID", "")), str(row.get("DirectionNum", "")), str(row.get("DirectionText", "")))
+            variants.setdefault(key, {"route": key[0], "direction": key[1], "destination": key[2],
+                                      "direction_text": row.get("DirectionText", "")})
+        return {"stop": stop, "variants": sorted(variants.values(), key=lambda x: (x["route"], x["direction"], x["destination"])),
+                "schedule_available": bool(schedule)}

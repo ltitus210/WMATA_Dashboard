@@ -35,6 +35,18 @@
   color: #28613d;
 }
 
+.stations-result,
+.discover-result {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.discover-button:disabled,
+.stations-button:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
 .shutdown-panel {
   border-color: #d7a29a;
 }

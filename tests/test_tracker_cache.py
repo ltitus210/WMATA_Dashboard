@@ -23,6 +23,14 @@ def test_profile_defaults_are_independent(tmp_path):
     assert home["arrival_count"] == 3 and home["layout"] == "row"
 
 
+def test_operational_metadata_can_be_cleared_after_recovery(tmp_path):
+    db = make_db(tmp_path)
+    db.set_meta("polling_error", "temporary failure")
+    assert db.meta()["polling_error"] == "temporary failure"
+    db.delete_meta("polling_error")
+    assert "polling_error" not in db.meta()
+
+
 def test_distance_and_state_thresholds():
     assert distance_m(38.9, -77.0, 38.9, -77.0) == 0
     assert VehicleStateTracker.classify(30) == "at_stop"
@@ -52,4 +60,3 @@ def test_conservative_passage_and_last_bus(tmp_path):
     assert result["state"] == "passed" and result["confidence"] == "high"
     last = tracker.last_bus("1000001", "S2", "Federal Triangle")
     assert last is not None and last["trip_id"] == "t"
-

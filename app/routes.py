@@ -48,7 +48,7 @@ def protected(view):
 def _schedule_rows(stop_id: str) -> list[dict]:
     rows = []
     now = datetime.now(EASTERN)
-    for offset in (-1, 0, 1):
+    for offset in (-1, 0):
         item = db().get_cache("stop_schedule", f"{stop_id}:{(now + timedelta(days=offset)).date().isoformat()}")
         if item:
             rows.extend(item["payload"])

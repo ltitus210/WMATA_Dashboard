@@ -25,6 +25,14 @@ def normalize_text(value: str) -> str:
     return re.sub(r"[^A-Z0-9]+", " ", (value or "").upper()).strip()
 
 
+def normalize_destination(value: str) -> str:
+    """Normalize common WMATA destination abbreviations for comparisons."""
+    words = normalize_text(value).split()
+    aliases = {"AV": "AVE", "AVENUE": "AVE", "STREET": "ST", "ROAD": "RD",
+               "BOULEVARD": "BLVD", "HIGHWAY": "HWY"}
+    return " ".join(aliases.get(word, word) for word in words)
+
+
 def scheduled_marker(style: str) -> str:
     return {"s": "s", "superscript": "ˢ", "(s)": " (s)", "Scheduled": " Scheduled"}.get(style, "ˢ")
 
@@ -58,6 +66,25 @@ def _matches(entry: dict, item: dict) -> bool:
     return (not entry.get("route") or route == entry["route"]) and \
            (not entry.get("direction") or direction == entry["direction"]) and \
            (not entry.get("destination") or normalize_text(entry["destination"]) in normalize_text(destination))
+
+
+def _matches_rail(entry: dict, train: dict) -> bool:
+    """Match PIDS rows while accepting station-list line groups and friendly names."""
+    configured_lines = {
+        line for line in re.split(r"[\s,;/]+", str(entry.get("route", "")).upper()) if line
+    }
+    line = str(train.get("Line", "")).upper()
+    line_matches = not configured_lines or line in configured_lines
+
+    # Rail platform groups are 1 or 2. Treat other values (especially the bus-oriented
+    # UI's historical "0" example) as no group filter instead of hiding every train.
+    configured_group = str(entry.get("direction", "")).strip()
+    group_matches = configured_group not in {"1", "2"} or str(train.get("Group", "")) == configured_group
+
+    configured_destination = normalize_destination(str(entry.get("destination", "")))
+    actual_destination = normalize_destination(str(train.get("DestinationName", "")))
+    destination_matches = not configured_destination or configured_destination in actual_destination
+    return line_matches and group_matches and destination_matches
 
 
 def _dedupe_key(item: dict) -> tuple:
@@ -122,7 +149,7 @@ def merge_rail(entry: dict, profile: dict, trains: Iterable[dict], cache_age: in
     result = []
     state = "stale" if cache_age > int(profile.get("stale_threshold", 120)) else "live"
     for train in trains:
-        if not _matches(entry, train):
+        if not _matches_rail(entry, train):
             continue
         raw = str(train.get("Min", "---")).upper()
         if raw in {"ARR", "BRD"}:

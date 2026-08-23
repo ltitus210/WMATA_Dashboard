@@ -144,6 +144,9 @@ class Database:
             (key, json.dumps(value), now),
         )
 
+    def delete_meta(self, key: str) -> None:
+        self.execute("DELETE FROM app_meta WHERE key=?", (key,))
+
     def meta(self) -> dict[str, Any]:
         result = {}
         for row in self.rows("SELECT * FROM app_meta"):

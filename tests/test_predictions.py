@@ -98,3 +98,15 @@ def test_rail_cache_can_be_stale():
     trains = [{"Line":"RD","Group":"1","DestinationName":"Glenmont","Min":"8"}]
     result = merge_rail({"route":"RD","direction":"1","destination":"Glenmont"}, profile(), trains, cache_age=121)
     assert result[0]["state"] == "stale" and result[0]["display"] == "8m?"
+
+
+def test_rail_accepts_station_lines_invalid_group_and_destination_abbreviation():
+    trains = [
+        {"Line": "GR", "Group": "2", "DestinationName": "Branch Av", "Min": "6"},
+        {"Line": "YL", "Group": "2", "DestinationName": "Huntington", "Min": "3"},
+    ]
+    configured = {"route": "GR/YL", "direction": "0", "destination": "Branch Ave"}
+    result = merge_rail(configured, profile(), trains)
+    assert len(result) == 1
+    assert result[0]["route"] == "GR"
+    assert result[0]["destination"] == "Branch Av"

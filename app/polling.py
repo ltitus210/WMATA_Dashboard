@@ -12,6 +12,11 @@ LOG = logging.getLogger(__name__)
 EASTERN = ZoneInfo("America/New_York")
 
 
+def schedule_service_dates(now_local: datetime) -> set[str]:
+    """Current and previous dates cover service that crosses local midnight."""
+    return {(now_local + timedelta(days=offset)).date().isoformat() for offset in (-1, 0)}
+
+
 class PollingManager:
     def __init__(self, app, db, client: WMATAClient, settings):
         self.app, self.db, self.client, self.settings = app, db, client, settings
@@ -37,6 +42,7 @@ class PollingManager:
             try:
                 self.poll_once()
                 self.db.set_meta("polling_status", "healthy")
+                self.db.delete_meta("polling_error")
             except Exception as exc:  # polling must survive malformed upstream data
                 LOG.exception("Polling cycle failed")
                 self.db.set_meta("polling_status", "degraded")
@@ -56,7 +62,7 @@ class PollingManager:
             except WMATAError:
                 pass
         now_local = datetime.now(EASTERN)
-        service_dates = {(now_local + timedelta(days=offset)).date().isoformat() for offset in (-1, 0, 1)}
+        service_dates = schedule_service_dates(now_local)
         for stop_id in {e["location_id"] for e in bus_entries}:
             prediction_cache = self.client.predictions(stop_id, force)
             predictions = prediction_cache["payload"].get("Predictions", []) if isinstance(prediction_cache["payload"], dict) else []
