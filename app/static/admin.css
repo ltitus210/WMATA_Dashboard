@@ -1,0 +1,42 @@
+.api-key-form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  gap: 12px;
+  align-items: end;
+  max-width: 900px;
+}
+
+.api-key-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font: 500 11px var(--mono);
+  letter-spacing: .05em;
+}
+
+.security-warning {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid #d7932f;
+  border-radius: 8px;
+  background: #fff5df;
+  color: #71470c;
+  font: 12px/1.5 var(--mono);
+}
+
+.field-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font: 11px/1.5 var(--mono);
+}
+
+.mode-badge.configured {
+  background: #edf7ef;
+  color: #28613d;
+}
+
+@media (max-width: 760px) {
+  .api-key-form {
+    grid-template-columns: 1fr;
+  }
+}

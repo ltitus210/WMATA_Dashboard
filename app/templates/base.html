@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}WMATA Display{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head_extra %}{% endblock %}
 </head>
 <body class="{% block body_class %}app-shell{% endblock %}">
   {% block body %}{% endblock %}
 </body>
 </html>
-

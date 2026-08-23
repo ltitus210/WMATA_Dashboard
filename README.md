@@ -17,13 +17,16 @@ python3.13 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e '.[test]'
 cp .env.example .env
-# Add your WMATA_API_KEY to .env
 python run.py
 ```
 
 Open `http://127.0.0.1:8080/admin` to configure stops and
 `http://127.0.0.1:8080/dashboard/home` for the default display. With the default
 `WMATA_BIND=0.0.0.0`, use the Pi's LAN IP from another device.
+
+The WMATA API key can be entered in the admin interface or supplied through
+`WMATA_API_KEY` in `.env`. Environment configuration takes precedence after an
+application restart.
 
 ## What is included
 
@@ -125,6 +128,12 @@ Environment variables are documented in `.env.example`:
 | `WMATA_SECRET_KEY` | development value | Set a random production value |
 
 The API key is only read server-side and is never emitted in HTML or JSON.
+Keys entered through the admin page are stored in SQLite's separate
+`secret_values` table, and the database file is restricted to mode `0600`. The
+key field is always blank when the page loads; the UI reports only whether a key
+is configured. Because browser submission still travels over the network, enable
+admin authentication and use a trusted LAN or an HTTPS reverse proxy before
+entering a key remotely. Keep `instance/` and database backups out of Git.
 
 ## Raspberry Pi OS deployment
 

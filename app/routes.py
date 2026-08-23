@@ -140,8 +140,39 @@ def health():
 @protected
 def admin():
     profiles = db().profiles()
+    stored_api_key = db().get_secret("wmata_api_key")
+    environment_api_key = current_app.config["SETTINGS"].api_key
+    key_source = "not configured"
+    if client().api_key:
+        key_source = "environment" if environment_api_key and client().api_key == environment_api_key else "web interface"
     return render_template("admin.html", profiles=profiles,
-                           entries={p["id"]: db().entries(p["id"]) for p in profiles})
+                           entries={p["id"]: db().entries(p["id"]) for p in profiles},
+                           api_key_configured=bool(client().api_key),
+                           api_key_source=key_source, web_api_key_stored=bool(stored_api_key),
+                           environment_api_key_configured=bool(environment_api_key),
+                           admin_auth_enabled=bool(current_app.config["SETTINGS"].admin_user))
+
+
+@bp.post("/admin/api-key")
+@protected
+def update_api_key():
+    action = request.form.get("action", "save")
+    if action == "remove":
+        db().delete_secret("wmata_api_key")
+        client().api_key = current_app.config["SETTINGS"].api_key
+        db().set_meta("last_api_key_change", utcnow().isoformat())
+        LOG.info("Removed web-configured WMATA API key")
+    else:
+        api_key = request.form.get("api_key", "").strip()
+        if not api_key:
+            abort(400, "API key cannot be empty")
+        if len(api_key) > 256 or any(character.isspace() for character in api_key):
+            abort(400, "Invalid API key format")
+        db().set_secret("wmata_api_key", api_key)
+        client().api_key = api_key
+        db().set_meta("last_api_key_change", utcnow().isoformat())
+        LOG.info("Updated WMATA API key through the administration interface")
+    return redirect(url_for("main.admin"))
 
 
 def _slug(value: str) -> str:

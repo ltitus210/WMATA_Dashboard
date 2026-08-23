@@ -39,7 +39,8 @@ def create_app(overrides: dict | None = None) -> Flask:
     db.initialize()
     db.seed_default_profile()
     app.extensions["database"] = db
-    app.extensions["wmata"] = WMATAClient(settings.api_key, db)
+    stored_api_key = db.get_secret("wmata_api_key")
+    app.extensions["wmata"] = WMATAClient(settings.api_key or stored_api_key, db)
     app.register_blueprint(bp)
 
     if settings.start_poller and not app.config.get("TESTING"):
@@ -47,4 +48,3 @@ def create_app(overrides: dict | None = None) -> Flask:
         poller.start()
         app.extensions["poller"] = poller
     return app
-

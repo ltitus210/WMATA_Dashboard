@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 import json
+import os
 import sqlite3
 import threading
 from typing import Any, Iterator
@@ -45,6 +46,9 @@ CREATE TABLE IF NOT EXISTS vehicle_observations (
 );
 CREATE INDEX IF NOT EXISTS idx_vehicle_history ON vehicle_observations(stop_id, trip_id, vehicle_id, observed_at);
 CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS secret_values (
+ key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL
+);
 """
 
 
@@ -73,6 +77,7 @@ class Database:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self._write_lock, self.connect() as conn:
             conn.executescript(SCHEMA)
+        os.chmod(self.path, 0o600)
 
     def seed_default_profile(self) -> None:
         now = utcnow().isoformat()
@@ -148,3 +153,16 @@ class Database:
                 result[row["key"]] = row["value"]
         return result
 
+    def get_secret(self, key: str) -> str:
+        row = self.one("SELECT value FROM secret_values WHERE key=?", (key,))
+        return row["value"] if row else ""
+
+    def set_secret(self, key: str, value: str) -> None:
+        self.execute(
+            "INSERT INTO secret_values(key,value,updated_at) VALUES(?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at",
+            (key, value, utcnow().isoformat()),
+        )
+
+    def delete_secret(self, key: str) -> None:
+        self.execute("DELETE FROM secret_values WHERE key=?", (key,))

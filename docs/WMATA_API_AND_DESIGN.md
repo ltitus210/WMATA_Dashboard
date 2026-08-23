@@ -75,9 +75,12 @@ and separate admin/diagnostic pages. Browsers poll only this local Flask app.
 - `vehicle_observations`: short-lived vehicle/trip/stop samples, coordinates,
   prediction, GPS/observation times, progression state and passage evidence.
 - `app_meta`: durable operational counters and request state.
+- `secret_values`: write-only-from-the-browser application credentials, including
+  an optionally web-configured WMATA key; values are excluded from diagnostics.
 
 SQLite uses WAL mode. Configuration and cache are separate tables, so purging
-cache cannot remove user settings.
+cache cannot remove user settings. The database file is restricted to owner-only
+permissions because it may contain an API key.
 
 ## Cache and polling
 
@@ -123,4 +126,3 @@ reorders/deletes entries and manages cache. Diagnostics reports request, cache,
 prediction, tracker, uptime, timezone, and error state. Optional HTTP Basic auth
 protects admin and diagnostics; dashboards remain public. If WMATA or the network
 fails, last-good content stays on screen with an age/status warning.
-

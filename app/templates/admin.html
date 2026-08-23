@@ -1,11 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Configure · WMATA Display{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">{% endblock %}
 {% block body %}
 <header class="topbar">
   <div><p class="eyebrow">WMATA DISPLAY</p><h1>Configuration</h1></div>
   <nav><a href="{{ url_for('main.diagnostics') }}">Diagnostics</a></nav>
 </header>
 <main class="admin-grid">
+  <section class="panel api-key-panel">
+    <div class="panel-title"><div><p class="eyebrow">WMATA CONNECTION</p><h2>Developer API key</h2><p class="muted">Status: <strong>{{ 'configured' if api_key_configured else 'not configured' }}</strong> · Source: {{ api_key_source }}. The current key is never displayed.</p></div><span class="mode-badge {{ 'configured' if api_key_configured else '' }}">{{ 'READY' if api_key_configured else 'KEY NEEDED' }}</span></div>
+    {% if not admin_auth_enabled %}<p class="security-warning">Admin authentication is disabled. Set <code>WMATA_ADMIN_USER</code> and <code>WMATA_ADMIN_PASSWORD</code> before exposing this page to an untrusted LAN.</p>{% endif %}
+    <form class="api-key-form" method="post" action="{{ url_for('main.update_api_key') }}">
+      <label>New WMATA API key<input type="password" name="api_key" autocomplete="new-password" maxlength="256" placeholder="Paste a new key" aria-label="New WMATA API key"></label>
+      <button name="action" value="save">Save key</button>
+      {% if web_api_key_stored %}<button class="secondary" name="action" value="remove" formnovalidate>Remove saved web key</button>{% endif %}
+    </form>
+    {% if environment_api_key_configured %}<p class="field-note">An environment-provided key is also configured and becomes authoritative after restart. Remove it from the environment if web configuration should persist across restarts.</p>{% endif %}
+  </section>
   <section class="panel intro-panel">
     <p class="eyebrow">DISPLAY PROFILES</p>
     <h2>One board, many rooms.</h2>
