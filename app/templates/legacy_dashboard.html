@@ -10,7 +10,7 @@
   <title>{{ state.profile.name }} · Legacy departures</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='legacy-dashboard.css') }}">
 </head>
-<body class="legacy-dashboard legacy-theme-{{ state.profile.theme }}">
+<body class="legacy-dashboard legacy-theme-{{ state.profile.theme }} text-size-{{ state.profile.text_size|replace('_','-') }}">
   <div class="legacy-board">
     <div class="legacy-header clearfix">
       <div class="legacy-title">

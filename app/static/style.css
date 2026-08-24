@@ -18,3 +18,42 @@ html.admin-theme-dark .app-shell input::placeholder{color:#85877e}
 html.admin-theme-dark .app-shell .discover-result{background:#242720}
 html.admin-theme-dark .app-shell .stale-row{background:#33251f}
 html.admin-theme-dark .app-shell .secondary{background:transparent;color:var(--ink);border-color:var(--line)}
+
+/* Per-profile dashboard typography. Medium intentionally matches the original board. */
+.dashboard{
+  --type-title:clamp(34px,6vw,78px);--type-clock:clamp(30px,4vw,58px);--type-clock-date:12px;
+  --type-stop:clamp(14px,1.7vw,22px);--type-mode:11px;--type-route:clamp(27px,4vw,54px);
+  --type-destination:clamp(15px,1.6vw,22px);--type-last:12px;--type-arrival:clamp(28px,5.4vw,72px);
+  --type-arrival-note:9px;--type-warning:12px;--type-no-service:15px;--type-footer:10px;--type-empty:28px
+}
+.dashboard.text-size-extra-small{
+  --type-title:clamp(24px,4.3vw,56px);--type-clock:clamp(22px,2.9vw,42px);--type-clock-date:9px;
+  --type-stop:clamp(10px,1.2vw,16px);--type-mode:8px;--type-route:clamp(19px,2.9vw,39px);
+  --type-destination:clamp(11px,1.15vw,16px);--type-last:9px;--type-arrival:clamp(20px,3.9vw,52px);
+  --type-arrival-note:7px;--type-warning:9px;--type-no-service:11px;--type-footer:8px;--type-empty:20px
+}
+.dashboard.text-size-small{
+  --type-title:clamp(29px,5.2vw,67px);--type-clock:clamp(26px,3.45vw,50px);--type-clock-date:10px;
+  --type-stop:clamp(12px,1.45vw,19px);--type-mode:9px;--type-route:clamp(23px,3.45vw,46px);
+  --type-destination:clamp(13px,1.38vw,19px);--type-last:10px;--type-arrival:clamp(24px,4.65vw,62px);
+  --type-arrival-note:8px;--type-warning:10px;--type-no-service:13px;--type-footer:9px;--type-empty:24px
+}
+.dashboard.text-size-large{
+  --type-title:clamp(40px,7.1vw,92px);--type-clock:clamp(35px,4.7vw,68px);--type-clock-date:14px;
+  --type-stop:clamp(17px,2vw,26px);--type-mode:13px;--type-route:clamp(32px,4.7vw,64px);
+  --type-destination:clamp(18px,1.9vw,26px);--type-last:14px;--type-arrival:clamp(33px,6.4vw,85px);
+  --type-arrival-note:11px;--type-warning:14px;--type-no-service:18px;--type-footer:12px;--type-empty:33px
+}
+.dashboard.text-size-extra-large{
+  --type-title:clamp(47px,8.3vw,108px);--type-clock:clamp(41px,5.5vw,80px);--type-clock-date:17px;
+  --type-stop:clamp(19px,2.35vw,30px);--type-mode:15px;--type-route:clamp(37px,5.5vw,75px);
+  --type-destination:clamp(21px,2.2vw,30px);--type-last:17px;--type-arrival:clamp(39px,7.45vw,99px);
+  --type-arrival-note:13px;--type-warning:17px;--type-no-service:21px;--type-footer:14px;--type-empty:39px
+}
+.dashboard .board-header h1{font-size:var(--type-title)}.dashboard .clock strong{font-size:var(--type-clock)}
+.dashboard .clock span{font-size:var(--type-clock-date)}.dashboard .arrival-card h2{font-size:var(--type-stop)}
+.dashboard .mode-symbol{font-size:var(--type-mode)}.dashboard .route{font-size:var(--type-route)}
+.dashboard .destination{font-size:var(--type-destination)}.dashboard .last{font-size:var(--type-last)}
+.dashboard .arrival{font-size:var(--type-arrival)}.dashboard .arrival small{font-size:var(--type-arrival-note)}
+.dashboard .warning{font-size:var(--type-warning)}.dashboard .no-service{font-size:var(--type-no-service)}
+.dashboard footer{font-size:var(--type-footer)}.dashboard .empty-board strong{font-size:var(--type-empty)}

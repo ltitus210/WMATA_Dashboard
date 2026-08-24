@@ -128,7 +128,7 @@ Environment variables are documented in `.env.example`:
 | `WMATA_POLL_INTERVAL` | `20` | Central poll cadence in seconds (minimum 10) |
 | `WMATA_START_POLLER` | `true` | Disable for tests or one-shot management |
 | `WMATA_LOG_LEVEL` | `INFO` | Python logging level |
-| `WMATA_LOG_FILE` | `instance/logs/wmata-dashboard.log` | Rotating application log |
+| `WMATA_LOG_FILE` | `instance/logs/wmata-dashboard.log` | Rotating application log; records older than 24 hours are pruned |
 | `WMATA_LOG_MAX_BYTES` | `2000000` | Bytes before log rotation |
 | `WMATA_LOG_BACKUP_COUNT` | `3` | Number of rotated logs retained |
 | `WMATA_SECRET_KEY` | development value | Set a random production value |

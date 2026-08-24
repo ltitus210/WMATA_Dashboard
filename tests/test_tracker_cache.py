@@ -21,6 +21,7 @@ def test_profile_defaults_are_independent(tmp_path):
     db.seed_default_profile()
     home = db.profile("home")
     assert home["arrival_count"] == 3 and home["layout"] == "row"
+    assert home["text_size"] == "medium"
 
 
 def test_operational_metadata_can_be_cleared_after_recovery(tmp_path):

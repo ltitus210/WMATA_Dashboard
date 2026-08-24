@@ -59,3 +59,79 @@ html, body {
   .legacy-times { margin-top: 14px; text-align: left; }
   .legacy-arrival { margin: 0 24px 0 0; font-size: 34px; }
 }
+
+/* Explicit values retain compatibility with Safari on iOS 10. Medium is unchanged. */
+.text-size-extra-small .legacy-title p { font-size: 8px; }
+.text-size-extra-small .legacy-title h1 { font-size: 35px; }
+.text-size-extra-small .legacy-clock strong { font-size: 16px; }
+.text-size-extra-small .legacy-clock span { font-size: 8px; }
+.text-size-extra-small .legacy-stop-header h2 { font-size: 13px; }
+.text-size-extra-small .legacy-mode { font-size: 8px; }
+.text-size-extra-small .legacy-route { font-size: 27px; }
+.text-size-extra-small .legacy-destination { font-size: 13px; }
+.text-size-extra-small .legacy-last { font-size: 9px; }
+.text-size-extra-small .legacy-arrival { font-size: 30px; }
+.text-size-extra-small .legacy-arrival small { font-size: 6px; }
+.text-size-extra-small .legacy-warning, .text-size-extra-small .legacy-no-service { font-size: 10px; }
+.text-size-extra-small .legacy-footer { font-size: 8px; }
+.text-size-extra-small .legacy-empty strong { font-size: 19px; }
+
+.text-size-small .legacy-title p { font-size: 9px; }
+.text-size-small .legacy-title h1 { font-size: 41px; }
+.text-size-small .legacy-clock strong { font-size: 19px; }
+.text-size-small .legacy-clock span { font-size: 9px; }
+.text-size-small .legacy-stop-header h2 { font-size: 15px; }
+.text-size-small .legacy-mode { font-size: 9px; }
+.text-size-small .legacy-route { font-size: 33px; }
+.text-size-small .legacy-destination { font-size: 15px; }
+.text-size-small .legacy-last { font-size: 10px; }
+.text-size-small .legacy-arrival { font-size: 36px; }
+.text-size-small .legacy-arrival small { font-size: 7px; }
+.text-size-small .legacy-warning, .text-size-small .legacy-no-service { font-size: 12px; }
+.text-size-small .legacy-footer { font-size: 9px; }
+.text-size-small .legacy-empty strong { font-size: 22px; }
+
+.text-size-large .legacy-title p { font-size: 13px; }
+.text-size-large .legacy-title h1 { font-size: 57px; }
+.text-size-large .legacy-clock strong { font-size: 26px; }
+.text-size-large .legacy-clock span { font-size: 12px; }
+.text-size-large .legacy-stop-header h2 { font-size: 21px; }
+.text-size-large .legacy-mode { font-size: 13px; }
+.text-size-large .legacy-route { font-size: 45px; }
+.text-size-large .legacy-destination { font-size: 21px; }
+.text-size-large .legacy-last { font-size: 14px; }
+.text-size-large .legacy-arrival { font-size: 50px; }
+.text-size-large .legacy-arrival small { font-size: 10px; }
+.text-size-large .legacy-warning, .text-size-large .legacy-no-service { font-size: 17px; }
+.text-size-large .legacy-footer { font-size: 12px; }
+.text-size-large .legacy-empty strong { font-size: 31px; }
+
+.text-size-extra-large .legacy-title p { font-size: 15px; }
+.text-size-extra-large .legacy-title h1 { font-size: 66px; }
+.text-size-extra-large .legacy-clock strong { font-size: 30px; }
+.text-size-extra-large .legacy-clock span { font-size: 14px; }
+.text-size-extra-large .legacy-stop-header h2 { font-size: 25px; }
+.text-size-extra-large .legacy-mode { font-size: 15px; }
+.text-size-extra-large .legacy-route { font-size: 52px; }
+.text-size-extra-large .legacy-destination { font-size: 25px; }
+.text-size-extra-large .legacy-last { font-size: 17px; }
+.text-size-extra-large .legacy-arrival { font-size: 58px; }
+.text-size-extra-large .legacy-arrival small { font-size: 11px; }
+.text-size-extra-large .legacy-warning, .text-size-extra-large .legacy-no-service { font-size: 19px; }
+.text-size-extra-large .legacy-footer { font-size: 14px; }
+.text-size-extra-large .legacy-empty strong { font-size: 36px; }
+
+@media screen and (max-width: 760px) {
+  .text-size-extra-small .legacy-title h1 { font-size: 25px; }
+  .text-size-extra-small .legacy-clock strong { font-size: 12px; }
+  .text-size-extra-small .legacy-arrival { font-size: 25px; }
+  .text-size-small .legacy-title h1 { font-size: 29px; }
+  .text-size-small .legacy-clock strong { font-size: 14px; }
+  .text-size-small .legacy-arrival { font-size: 29px; }
+  .text-size-large .legacy-title h1 { font-size: 40px; }
+  .text-size-large .legacy-clock strong { font-size: 19px; }
+  .text-size-large .legacy-arrival { font-size: 40px; }
+  .text-size-extra-large .legacy-title h1 { font-size: 47px; }
+  .text-size-extra-large .legacy-clock strong { font-size: 22px; }
+  .text-size-extra-large .legacy-arrival { font-size: 47px; }
+}

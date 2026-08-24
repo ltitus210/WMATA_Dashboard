@@ -154,13 +154,15 @@ def admin():
     if client().api_key:
         key_source = "environment" if environment_api_key and client().api_key == environment_api_key else "web interface"
     log_status = current_app.extensions["log_manager"].status()
+    storage_status = db().storage_status()
     return render_template("admin.html", profiles=profiles,
                            entries={p["id"]: db().entries(p["id"]) for p in profiles},
                            api_key_configured=bool(client().api_key),
                            api_key_source=key_source, web_api_key_stored=bool(stored_api_key),
                            environment_api_key_configured=bool(environment_api_key),
                            admin_auth_enabled=bool(current_app.config["SETTINGS"].admin_user),
-                           log_status=log_status, logs_purged=request.args.get("logs_purged"))
+                           log_status=log_status, storage_status=storage_status,
+                           logs_purged=request.args.get("logs_purged"))
 
 
 @bp.post("/admin/api-key")
@@ -231,6 +233,7 @@ def update_profile(profile_id: int):
     choices = {
         "display_type": {"lcd", "eink_mono", "eink_color"}, "theme": {"light", "dark"},
         "layout": {"row", "card"}, "minute_format": {"m", "min", "minutes"},
+        "text_size": {"extra_small", "small", "medium", "large", "extra_large"},
         "near_format": {"DUE", "ARR", "NOW", "<1", "actual"},
         "scheduled_format": {"s", "superscript", "(s)", "Scheduled"}, "stale_format": {"?", "﹖", "Stale"},
     }
@@ -248,10 +251,10 @@ def update_profile(profile_id: int):
         "show_bus": int("show_bus" in request.form), "show_rail": int("show_rail" in request.form),
         "show_legend": int("show_legend" in request.form), "show_occupancy": int("show_occupancy" in request.form),
     })
-    db().execute("""UPDATE profiles SET name=?,display_type=?,theme=?,layout=?,minute_format=?,near_format=?,
+    db().execute("""UPDATE profiles SET name=?,display_type=?,theme=?,layout=?,text_size=?,minute_format=?,near_format=?,
         scheduled_format=?,stale_format=?,arrival_count=?,stale_threshold=?,refresh_interval=?,show_bus=?,show_rail=?,
         show_legend=?,show_occupancy=?,updated_at=? WHERE id=?""",
-        (values["name"], values["display_type"], values["theme"], values["layout"], values["minute_format"],
+        (values["name"], values["display_type"], values["theme"], values["layout"], values["text_size"], values["minute_format"],
          values["near_format"], values["scheduled_format"], values["stale_format"], values["arrival_count"],
          values["stale_threshold"], values["refresh_interval"], values["show_bus"], values["show_rail"],
          values["show_legend"], values["show_occupancy"], utcnow().isoformat(), profile_id))

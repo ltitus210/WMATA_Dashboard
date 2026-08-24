@@ -8,6 +8,8 @@ import sqlite3
 import threading
 from typing import Any, Iterator
 
+from .logging_manager import format_bytes
+
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -15,7 +17,7 @@ PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS profiles (
  id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
  display_type TEXT NOT NULL DEFAULT 'lcd', theme TEXT NOT NULL DEFAULT 'dark',
- layout TEXT NOT NULL DEFAULT 'row', show_bus INTEGER NOT NULL DEFAULT 1,
+ layout TEXT NOT NULL DEFAULT 'row', text_size TEXT NOT NULL DEFAULT 'medium', show_bus INTEGER NOT NULL DEFAULT 1,
  show_rail INTEGER NOT NULL DEFAULT 0, arrival_count INTEGER NOT NULL DEFAULT 3,
  minute_format TEXT NOT NULL DEFAULT 'm', near_format TEXT NOT NULL DEFAULT 'DUE',
  scheduled_format TEXT NOT NULL DEFAULT 'superscript', stale_format TEXT NOT NULL DEFAULT '?',
@@ -77,6 +79,9 @@ class Database:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self._write_lock, self.connect() as conn:
             conn.executescript(SCHEMA)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
+            if "text_size" not in columns:
+                conn.execute("ALTER TABLE profiles ADD COLUMN text_size TEXT NOT NULL DEFAULT 'medium'")
         os.chmod(self.path, 0o600)
 
     def seed_default_profile(self) -> None:
@@ -169,3 +174,18 @@ class Database:
 
     def delete_secret(self, key: str) -> None:
         self.execute("DELETE FROM secret_values WHERE key=?", (key,))
+
+    def storage_status(self) -> dict:
+        paths = [self.path, f"{self.path}-wal", f"{self.path}-shm"]
+        database_bytes = sum(os.path.getsize(path) for path in paths if os.path.exists(path))
+        cache = self.one(
+            "SELECT COUNT(*) AS count,COALESCE(SUM(LENGTH(payload_json)),0) AS bytes FROM cache_entries"
+        ) or {"count": 0, "bytes": 0}
+        return {
+            "filename": os.path.basename(self.path),
+            "bytes": database_bytes,
+            "size": format_bytes(database_bytes),
+            "cache_count": int(cache["count"]),
+            "cache_bytes": int(cache["bytes"]),
+            "cache_size": format_bytes(int(cache["bytes"])),
+        }

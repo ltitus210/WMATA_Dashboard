@@ -160,6 +160,29 @@
   font-size: 21px;
 }
 
+.storage-stats {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0 18px;
+}
+
+.storage-stats > div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+}
+
+.storage-stats dt {
+  color: var(--ink);
+  font: 600 11px var(--mono);
+}
+
+.storage-stats dd {
+  margin: 0;
+  color: var(--muted);
+  font: 11px/1.5 var(--mono);
+}
+
 .success-notice {
   padding: 12px 14px;
   border: 1px solid #8db69a;
