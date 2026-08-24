@@ -60,3 +60,19 @@ def test_conservative_passage_and_last_bus(tmp_path):
     assert result["state"] == "passed" and result["confidence"] == "high"
     last = tracker.last_bus("1000001", "S2", "Federal Triangle")
     assert last is not None and last["trip_id"] == "t"
+
+
+def test_last_bus_matches_direction_prefix_to_wmata_headsign(tmp_path):
+    db = make_db(tmp_path)
+    now = datetime.now(UTC).isoformat()
+    for trip, headsign, direction in (("wrong", "FORT TOTTEN", "0"),
+                                      ("right", "FEDERAL TRIANGLE", "1")):
+        db.execute(
+            """INSERT INTO vehicle_observations(vehicle_id,trip_id,route,headsign,direction,stop_id,
+               observed_at,state,inferred_passage_at) VALUES(?,?,?,?,?,?,?,?,?)""",
+            (trip, trip, "D44", headsign, direction, "1003048", now, "passed", now),
+        )
+    last = VehicleStateTracker(db).last_bus(
+        "1003048", "D44", "South to Federal Triangle", "1"
+    )
+    assert last is not None and last["trip_id"] == "right"

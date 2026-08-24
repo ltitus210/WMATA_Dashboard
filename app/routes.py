@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, url_for
 
 from .database import utcnow
-from .predictions.engine import format_minutes, merge_bus, merge_rail
+from .predictions.engine import format_elapsed_minutes, format_minutes, merge_bus, merge_rail
 from .vehicles.state_tracker import VehicleStateTracker
 from .wmata.client import WMATAError
 
@@ -82,12 +82,10 @@ def dashboard_state(slug: str) -> dict:
             arrivals = merge_bus(entry, profile, predictions, _schedule_rows(entry["location_id"]),
                                  positions, pc["age_seconds"] if pc else 999999,
                                  passed_trip_ids=tracker.passed_trips(entry["location_id"]))
-            last = tracker.last_bus(entry["location_id"], entry["route"], entry["destination"])
+            last = tracker.last_bus(entry["location_id"], entry["route"], entry["destination"], entry["direction"])
             if last:
-                gps_at = datetime.fromisoformat(last["gps_at"]) if last.get("gps_at") else None
-                gps_age = (datetime.now(UTC) - gps_at.astimezone(UTC)).total_seconds() if gps_at else 999999
-                last_state = "stale" if gps_age > int(profile["stale_threshold"]) else "live"
-                last = {**last, "state": last_state, "display": format_minutes(last["minutes_ago"], profile, last_state)}
+                last = {**last, "state": "historical",
+                        "display": format_elapsed_minutes(last["minutes_ago"], profile)}
             for cache in (pc, pos):
                 if cache:
                     max_age = max(max_age, cache["age_seconds"])

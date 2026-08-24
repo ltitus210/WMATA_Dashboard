@@ -33,6 +33,12 @@ def normalize_destination(value: str) -> str:
     return " ".join(aliases.get(word, word) for word in words)
 
 
+def normalize_headsign(value: str) -> str:
+    """Reduce configured direction phrases to the terminal name WMATA stores."""
+    normalized = normalize_destination(value)
+    return re.sub(r"^(?:NORTH|SOUTH|EAST|WEST)(?:BOUND)?(?: TO)?\s+", "", normalized)
+
+
 def scheduled_marker(style: str) -> str:
     return {"s": "s", "superscript": "ˢ", "(s)": " (s)", "Scheduled": " Scheduled"}.get(style, "ˢ")
 
@@ -57,6 +63,17 @@ def format_minutes(minutes: float, profile: dict, state: str = "live") -> str:
     elif state == "stale":
         text += stale_marker(profile.get("stale_format", "?"))
     return text
+
+
+def format_elapsed_minutes(minutes: float, profile: dict) -> str:
+    """Format a historical passage as elapsed time, independent of live-data markers."""
+    amount = max(0, round(minutes))
+    unit = profile.get("minute_format", "m")
+    if unit == "m":
+        return f"{amount}m ago"
+    if unit == "minutes":
+        return f"{amount} {'minute' if amount == 1 else 'minutes'} ago"
+    return f"{amount} min ago"
 
 
 def _matches(entry: dict, item: dict) -> bool:

@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from app.predictions.engine import format_minutes, merge_bus, merge_rail, parse_wmata_time
+from app.predictions.engine import format_elapsed_minutes, format_minutes, merge_bus, merge_rail, parse_wmata_time
 
 
 def profile(**changes):
@@ -17,6 +17,11 @@ def test_minute_formats():
     assert format_minutes(7, profile()) == "7m"
     assert format_minutes(7, profile(minute_format="min")) == "7 min"
     assert format_minutes(7, profile(minute_format="minutes")) == "7 minutes"
+
+
+def test_elapsed_minute_formats_always_say_ago():
+    assert format_elapsed_minutes(7.2, profile()) == "7m ago"
+    assert format_elapsed_minutes(1.1, profile(minute_format="minutes")) == "1 minute ago"
 
 
 def test_near_formats_and_actual_seconds():

@@ -5,7 +5,7 @@ from math import asin, cos, radians, sin, sqrt
 import logging
 
 from ..database import Database
-from ..predictions.engine import parse_wmata_time
+from ..predictions.engine import normalize_headsign, parse_wmata_time
 
 LOG = logging.getLogger(__name__)
 
@@ -73,21 +73,29 @@ class VehicleStateTracker:
         )
         return {r["trip_id"] for r in rows if r["trip_id"]}
 
-    def last_bus(self, stop_id: str, route: str, destination: str = "") -> dict | None:
-        params: list = [stop_id, route]
-        clause = ""
-        if destination:
-            clause = " AND upper(headsign) LIKE ?"
-            params.append(f"%{destination.upper()}%")
-        row = self.db.one(
-            f"""SELECT * FROM vehicle_observations WHERE stop_id=? AND route=?{clause}
-                AND inferred_passage_at IS NOT NULL ORDER BY inferred_passage_at DESC LIMIT 1""", tuple(params))
-        if not row:
+    def last_bus(self, stop_id: str, route: str, destination: str = "", direction: str = "") -> dict | None:
+        rows = self.db.rows(
+            """SELECT * FROM vehicle_observations WHERE stop_id=? AND route=?
+               AND inferred_passage_at IS NOT NULL ORDER BY inferred_passage_at DESC LIMIT 100""",
+            (stop_id, route),
+        )
+        configured_destination = normalize_headsign(destination)
+        row = next((candidate for candidate in rows
+                    if (not direction or str(candidate.get("direction", "")) == str(direction))
+                    and (not configured_destination
+                         or configured_destination in normalize_headsign(candidate.get("headsign", ""))
+                         or normalize_headsign(candidate.get("headsign", "")) in configured_destination)), None)
+        if row is None:
             return None
         at = datetime.fromisoformat(row["inferred_passage_at"])
         row["minutes_ago"] = max(0, (datetime.now(UTC) - at).total_seconds() / 60)
         return row
 
     def expire(self) -> None:
-        cutoff = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
-        self.db.execute("DELETE FROM vehicle_observations WHERE observed_at<?", (cutoff,))
+        recent_cutoff = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
+        passage_cutoff = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
+        self.db.execute(
+            "DELETE FROM vehicle_observations WHERE (inferred_passage_at IS NULL AND observed_at<?) "
+            "OR (inferred_passage_at IS NOT NULL AND observed_at<?)",
+            (recent_cutoff, passage_cutoff),
+        )
