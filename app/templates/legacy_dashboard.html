@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no">
+  <meta http-equiv="refresh" content="{{ state.refresh_interval }}">
+  <title>{{ state.profile.name }} · Legacy departures</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='legacy-dashboard.css') }}">
+</head>
+<body class="legacy-dashboard legacy-theme-{{ state.profile.theme }}">
+  <div class="legacy-board">
+    <div class="legacy-header clearfix">
+      <div class="legacy-title">
+        <p>LIVE DEPARTURES</p>
+        <h1>{{ state.profile.name }}</h1>
+      </div>
+      <div class="legacy-clock">
+        <strong>{{ state.server_time|replace('T', ' ')|truncate(16, True, '') }}</strong>
+        <span>Refreshes every {{ state.refresh_interval }} seconds</span>
+      </div>
+    </div>
+
+    {% if state.warning %}<div class="legacy-warning">{{ state.warning }}</div>{% endif %}
+
+    <div class="legacy-cards">
+      {% for entry in state.entries %}
+      <div class="legacy-card">
+        <div class="legacy-stop-header">
+          <span class="legacy-mode">{{ 'B' if entry.mode == 'bus' else 'M' }}</span>
+          <h2>{{ entry.location_name }}</h2>
+        </div>
+        <div class="legacy-row">
+          <div class="legacy-route-block">
+            <strong class="legacy-route">{{ entry.route or ('Rail' if entry.mode == 'rail' else 'Bus') }}</strong>
+            <div class="legacy-destination-block">
+              <p class="legacy-destination">{{ entry.destination or 'All destinations' }}</p>
+              {% if entry.mode == 'bus' %}<p class="legacy-last">Last {{ entry.last.display if entry.last else '—' }}</p>{% endif %}
+            </div>
+          </div>
+          <div class="legacy-times">
+            {% for arrival in entry.arrivals %}
+            <span class="legacy-arrival legacy-state-{{ arrival.state }}">{{ arrival.display }}{% if arrival.occupancy %}<small>{{ arrival.occupancy|replace('_', ' ')|lower }}</small>{% endif %}</span>
+            {% else %}<span class="legacy-no-service">No arrivals</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="legacy-empty"><strong>No arrivals configured</strong><span>Open /admin to add a stop.</span></div>
+      {% endfor %}
+    </div>
+
+    <div class="legacy-footer clearfix">
+      <span>Updated {{ state.freshness_seconds }}s ago</span>
+      <span class="legacy-footer-right">WMATA data · legacy iPad view</span>
+    </div>
+  </div>
+</body>
+</html>

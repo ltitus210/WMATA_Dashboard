@@ -36,6 +36,7 @@ def test_distance_and_state_thresholds():
     assert VehicleStateTracker.classify(30) == "at_stop"
     assert VehicleStateTracker.classify(80) == "near_stop"
     assert VehicleStateTracker.classify(200, 80) == "passed"
+    assert VehicleStateTracker.classify(155, 57) == "passed"
 
 
 def test_passage_requires_prediction_disappearance(tmp_path):
@@ -76,3 +77,30 @@ def test_last_bus_matches_direction_prefix_to_wmata_headsign(tmp_path):
         "1003048", "D44", "South to Federal Triangle", "1"
     )
     assert last is not None and last["trip_id"] == "right"
+
+
+def test_last_bus_reconciles_zero_minute_then_sparse_gps_departure(tmp_path):
+    db = make_db(tmp_path)
+    now = datetime.now(UTC)
+    records = [
+        (192.0, 0.0, now - timedelta(minutes=7)),
+        (2100.0, None, now - timedelta(minutes=1)),
+    ]
+    for distance, prediction, observed in records:
+        db.execute(
+            """INSERT INTO vehicle_observations(vehicle_id,trip_id,route,headsign,direction,stop_id,
+               distance_m,prediction_minutes,gps_at,observed_at,state) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+            ("bus", "west-trip", "D74", "POTOMAC PARK", "1", "1003047", distance,
+             prediction, observed.isoformat(), observed.isoformat(), "approaching"),
+        )
+
+    last = VehicleStateTracker(db).last_bus(
+        "1003047", "D74", "West to Potomac Park", "1"
+    )
+    assert last is not None and last["trip_id"] == "west-trip"
+    assert 6 < last["minutes_ago"] < 8
+    assert "prediction disappeared" in last["evidence"]
+    assert VehicleStateTracker(db).reconcile_missed_passages("1003047", "D74") == 0
+    assert len(db.rows(
+        "SELECT id FROM vehicle_observations WHERE trip_id='west-trip' AND inferred_passage_at IS NOT NULL"
+    )) == 1

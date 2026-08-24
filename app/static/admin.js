@@ -222,3 +222,58 @@ document.querySelectorAll('.purge-logs-form').forEach(form => {
     }
   });
 });
+
+document.querySelectorAll('.widget-list').forEach(list => {
+  const status = list.querySelector('.widget-order-status');
+  let dragging = null;
+  let changed = false;
+
+  async function saveOrder() {
+    if (!changed) return;
+    const entryIds = [...list.querySelectorAll('.entry-widget')].map(card => Number(card.dataset.entryId));
+    status.textContent = 'Saving widget order…';
+    try {
+      const response = await fetch(list.dataset.reorderUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({entry_ids: entryIds}),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      status.textContent = 'Widget order saved.';
+      changed = false;
+    } catch (error) {
+      status.textContent = `Could not save widget order: ${error.message || error}`;
+    }
+  }
+
+  list.querySelectorAll('.drag-handle').forEach(handle => {
+    handle.addEventListener('dragstart', event => {
+      dragging = handle.closest('.entry-widget');
+      changed = false;
+      dragging.classList.add('is-dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', dragging.dataset.entryId);
+      if (event.dataTransfer.setDragImage) event.dataTransfer.setDragImage(dragging, 28, 24);
+    });
+    handle.addEventListener('dragend', async () => {
+      if (dragging) dragging.classList.remove('is-dragging');
+      dragging = null;
+      await saveOrder();
+    });
+  });
+
+  list.addEventListener('dragover', event => {
+    if (!dragging) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const target = event.target.closest('.entry-widget');
+    if (!target || target === dragging) return;
+    const bounds = target.getBoundingClientRect();
+    const after = event.clientY > bounds.top + bounds.height / 2;
+    list.insertBefore(dragging, after ? target.nextSibling : target);
+    changed = true;
+  });
+
+  list.addEventListener('drop', event => event.preventDefault());
+});

@@ -4,7 +4,7 @@
 {% block body %}
 <header class="topbar">
   <div><p class="eyebrow">WMATA DISPLAY</p><h1>Configuration</h1></div>
-  <nav><a href="{{ url_for('main.diagnostics') }}">Diagnostics</a></nav>
+  <nav><a href="{{ url_for('main.diagnostics') }}">Diagnostics</a><button class="theme-toggle" type="button" role="switch" aria-checked="false" aria-label="Toggle light and dark mode"><span>Light</span><span>Dark</span></button></nav>
 </header>
 <main class="admin-grid">
   <section class="panel api-key-panel">
@@ -31,7 +31,10 @@
   <section class="panel profile-panel">
     <div class="panel-title">
       <div><p class="eyebrow">PROFILE / {{ profile.slug|upper }}</p><h2>{{ profile.name }}</h2></div>
-      <a class="button secondary" href="{{ url_for('main.dashboard', slug=profile.slug) }}">Open board ↗</a>
+      <div class="actions">
+        <a class="button secondary" href="{{ url_for('main.dashboard', slug=profile.slug) }}">Open board ↗</a>
+        <a class="button secondary" href="{{ url_for('main.legacy_dashboard', slug=profile.slug) }}">Legacy iPad ↗</a>
+      </div>
     </div>
     <form class="settings-grid" method="post" action="{{ url_for('main.update_profile', profile_id=profile.id) }}">
       <label>Name<input name="name" value="{{ profile.name }}" required></label>
@@ -48,18 +51,20 @@
       <div class="check-row"><label><input type="checkbox" name="show_bus" {{ 'checked' if profile.show_bus }}> Bus</label><label><input type="checkbox" name="show_rail" {{ 'checked' if profile.show_rail }}> Rail</label><label><input type="checkbox" name="show_legend" {{ 'checked' if profile.show_legend }}> Legend</label><label><input type="checkbox" name="show_occupancy" {{ 'checked' if profile.show_occupancy }}> Occupancy</label></div>
       <button>Save settings</button>
     </form>
-    <div class="entry-list">
+    <div class="entry-list widget-list" data-reorder-url="{{ url_for('main.reorder_entries', profile_id=profile.id) }}">
       {% for entry in entries[profile.id] %}
-      <article class="entry-item">
-        <span class="mode-badge">{{ entry.mode }}</span>
-        <div><strong>{{ entry.location_name }}</strong><p>{{ entry.route }}{% if entry.destination %} → {{ entry.destination }}{% endif %}{% if entry.direction %} · direction {{ entry.direction }}{% endif %}</p></div>
-        <div class="entry-actions">
-          <form method="post" action="{{ url_for('main.move_entry', entry_id=entry.id) }}"><input type="hidden" name="direction" value="up"><button class="icon-button" title="Move up">↑</button></form>
-          <form method="post" action="{{ url_for('main.move_entry', entry_id=entry.id) }}"><input type="hidden" name="direction" value="down"><button class="icon-button" title="Move down">↓</button></form>
-          <form method="post" action="{{ url_for('main.delete_entry', entry_id=entry.id) }}"><button class="icon-button danger" title="Delete">×</button></form>
-        </div>
-      </article>
-      <details class="edit-entry"><summary>Edit {{ entry.route or entry.location_id }}</summary>
+      <article class="entry-widget" data-entry-id="{{ entry.id }}">
+        <header class="entry-item">
+          <button class="drag-handle" type="button" draggable="true" title="Drag to reorder" aria-label="Drag {{ entry.location_name }} to reorder">⋮⋮</button>
+          <span class="mode-badge">{{ entry.mode }}</span>
+          <div class="entry-widget-title"><strong>{{ entry.location_name }}</strong><p>{{ entry.route }}{% if entry.destination %} → {{ entry.destination }}{% endif %}{% if entry.direction %} · direction {{ entry.direction }}{% endif %}</p></div>
+          <div class="entry-actions">
+            <form method="post" action="{{ url_for('main.move_entry', entry_id=entry.id) }}"><input type="hidden" name="direction" value="up"><button class="icon-button" title="Move up">↑</button></form>
+            <form method="post" action="{{ url_for('main.move_entry', entry_id=entry.id) }}"><input type="hidden" name="direction" value="down"><button class="icon-button" title="Move down">↓</button></form>
+            <form method="post" action="{{ url_for('main.delete_entry', entry_id=entry.id) }}"><button class="icon-button danger" title="Delete">×</button></form>
+          </div>
+        </header>
+        <details class="edit-entry"><summary>Edit {{ entry.route or entry.location_id }}</summary>
         <form class="settings-grid entry-form" method="post" action="{{ url_for('main.update_entry', entry_id=entry.id) }}">
           <label>Mode<select class="entry-mode" name="mode"><option value="bus" {{ 'selected' if entry.mode=='bus' }}>Metrobus</option><option value="rail" {{ 'selected' if entry.mode=='rail' }}>Metrorail</option></select></label>
           <div class="rail-guided-fields" hidden>
@@ -71,8 +76,10 @@
           <label class="manual-entry-field">Route / line<input class="entry-route" name="route" value="{{ entry.route }}" placeholder="S2 or GR/YL"></label><label class="manual-entry-field">Direction<input class="entry-direction" name="direction" value="{{ entry.direction }}" placeholder="0 or 1"></label><label class="manual-entry-field">Destination<input class="entry-destination" name="destination" value="{{ entry.destination }}"></label><label>Label<input name="label" value="{{ entry.label }}"></label>
           <label class="enabled-check"><input type="checkbox" name="enabled" {{ 'checked' if entry.enabled }}> Enabled</label><button>Save row</button>
         </form>
-      </details>
+        </details>
+      </article>
       {% else %}<p class="empty">No entries yet. Add one below.</p>{% endfor %}
+      <p class="widget-order-status field-note" aria-live="polite"></p>
     </div>
     <details class="add-entry"><summary>Add an arrival row</summary>
       <form class="settings-grid entry-form" method="post" action="{{ url_for('main.create_entry') }}">

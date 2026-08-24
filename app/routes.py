@@ -125,6 +125,15 @@ def dashboard(slug: str):
     return render_template("dashboard.html", state=dashboard_state(slug))
 
 
+@bp.get("/dashboard/<slug>/legacy")
+def legacy_dashboard(slug: str):
+    rendered = render_template("legacy_dashboard.html", state=dashboard_state(slug))
+    return Response(rendered, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+    })
+
+
 @bp.get("/api/dashboard/<slug>")
 def api_dashboard(slug: str):
     return jsonify(dashboard_state(slug))
@@ -280,6 +289,24 @@ def move_entry(entry_id: int):
         db().execute("UPDATE entries SET position=? WHERE id=?", (entry["position"], other["id"]))
         db().execute("UPDATE entries SET position=? WHERE id=?", (entry["position"] + delta, entry_id))
     return redirect(url_for("main.admin"))
+
+
+@bp.post("/admin/profiles/<int:profile_id>/entries/reorder")
+@protected
+def reorder_entries(profile_id: int):
+    payload = request.get_json(silent=True) or {}
+    entry_ids = payload.get("entry_ids")
+    current = db().rows("SELECT id FROM entries WHERE profile_id=? ORDER BY position,id", (profile_id,))
+    current_ids = [row["id"] for row in current]
+    if (not isinstance(entry_ids, list) or any(type(entry_id) is not int for entry_id in entry_ids)
+            or len(entry_ids) != len(set(entry_ids)) or set(entry_ids) != set(current_ids)):
+        return jsonify(error="Entry order must contain every profile entry exactly once."), 400
+    now = utcnow().isoformat()
+    for position, entry_id in enumerate(entry_ids):
+        db().execute("UPDATE entries SET position=?,updated_at=? WHERE id=? AND profile_id=?",
+                     (position, now, entry_id, profile_id))
+    LOG.info("Reordered %s dashboard widgets for profile id=%s", len(entry_ids), profile_id)
+    return jsonify(ok=True, entry_ids=entry_ids)
 
 
 @bp.post("/admin/entries/<int:entry_id>")

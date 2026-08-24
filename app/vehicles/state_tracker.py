@@ -26,7 +26,7 @@ class VehicleStateTracker:
             return "at_stop"
         if distance <= 120:
             return "near_stop"
-        if previous_distance is not None and previous_distance <= 120 and distance >= 160:
+        if previous_distance is not None and previous_distance <= 120 and distance >= 140:
             return "passed"
         return "approaching"
 
@@ -74,6 +74,7 @@ class VehicleStateTracker:
         return {r["trip_id"] for r in rows if r["trip_id"]}
 
     def last_bus(self, stop_id: str, route: str, destination: str = "", direction: str = "") -> dict | None:
+        self.reconcile_missed_passages(stop_id, route)
         rows = self.db.rows(
             """SELECT * FROM vehicle_observations WHERE stop_id=? AND route=?
                AND inferred_passage_at IS NOT NULL ORDER BY inferred_passage_at DESC LIMIT 100""",
@@ -90,6 +91,54 @@ class VehicleStateTracker:
         at = datetime.fromisoformat(row["inferred_passage_at"])
         row["minutes_ago"] = max(0, (datetime.now(UTC) - at).total_seconds() / 60)
         return row
+
+    def reconcile_missed_passages(self, stop_id: str, route: str) -> int:
+        """Recover departures confirmed by a 0-minute prediction and sparse GPS updates."""
+        cutoff = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
+        rows = self.db.rows(
+            """SELECT * FROM vehicle_observations WHERE stop_id=? AND route=?
+               AND observed_at>=?
+               ORDER BY trip_id,vehicle_id,observed_at""",
+            (stop_id, route, cutoff),
+        )
+        grouped: dict[tuple[str, str], list[dict]] = {}
+        for row in rows:
+            grouped.setdefault((row.get("trip_id", ""), row.get("vehicle_id", "")), []).append(row)
+
+        recovered = 0
+        for observations in grouped.values():
+            if any(row.get("inferred_passage_at") for row in observations):
+                continue
+            anchor = None
+            for row in observations:
+                distance = float(row.get("distance_m") or 999999)
+                prediction = row.get("prediction_minutes")
+                is_zero_prediction = prediction is not None and float(prediction) <= 0
+                if distance <= 120 or (is_zero_prediction and distance <= 250):
+                    anchor = row
+                    continue
+                if not anchor or prediction is not None or distance < 140:
+                    continue
+                anchor_distance = float(anchor.get("distance_m") or 0)
+                if distance < anchor_distance + 40:
+                    continue
+                anchor_at = parse_wmata_time(anchor.get("gps_at")) or datetime.fromisoformat(anchor["observed_at"])
+                moved_at = parse_wmata_time(row.get("gps_at")) or datetime.fromisoformat(row["observed_at"])
+                if moved_at <= anchor_at or moved_at - anchor_at > timedelta(minutes=15):
+                    anchor = None
+                    continue
+                anchor_prediction = anchor.get("prediction_minutes")
+                passage_at = anchor_at if anchor_prediction is not None and float(anchor_prediction) <= 0 else moved_at
+                evidence = "0-minute/near-stop observation followed by GPS moving away after prediction disappeared"
+                self.db.execute(
+                    "UPDATE vehicle_observations SET state='passed',inferred_passage_at=?,evidence=?,confidence='high' WHERE id=?",
+                    (passage_at.isoformat(), evidence, row["id"]),
+                )
+                LOG.info("Reconciled missed stop passage stop=%s trip=%s vehicle=%s",
+                         stop_id, row.get("trip_id", ""), row.get("vehicle_id", ""))
+                recovered += 1
+                break
+        return recovered
 
     def expire(self) -> None:
         recent_cutoff = (datetime.now(UTC) - timedelta(hours=2)).isoformat()

@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}WMATA Display{% endblock %}</title>
+  <script>(function(){try{if(localStorage.getItem('wmata-admin-theme')==='dark'){document.documentElement.className='admin-theme-dark';}}catch(e){}}());</script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   {% block head_extra %}{% endblock %}
 </head>
 <body class="{% block body_class %}app-shell{% endblock %}">
   {% block body %}{% endblock %}
+  <script src="{{ url_for('static', filename='admin-theme.js') }}"></script>
 </body>
 </html>

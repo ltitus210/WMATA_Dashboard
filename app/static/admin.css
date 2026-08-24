@@ -35,6 +35,71 @@
   color: #28613d;
 }
 
+.widget-list {
+  display: grid;
+  gap: 12px;
+  border-top: 0;
+}
+
+.entry-widget {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+  box-shadow: 0 5px 18px rgba(35, 32, 24, .04);
+  transition: border-color .15s ease, box-shadow .15s ease, opacity .15s ease;
+}
+
+.entry-widget .entry-item {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  padding: 14px;
+  border-bottom: 0;
+}
+
+.entry-widget-title {
+  min-width: 0;
+}
+
+.drag-handle {
+  width: 34px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: 700 16px var(--mono);
+  letter-spacing: -5px;
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.entry-widget.is-dragging {
+  opacity: .42;
+  border-color: var(--signal);
+  box-shadow: 0 12px 30px rgba(35, 32, 24, .13);
+}
+
+.entry-widget .edit-entry {
+  border-top: 1px solid var(--line);
+  padding: 0 14px 14px;
+}
+
+.entry-widget .edit-entry summary {
+  padding: 12px 0 0;
+  color: var(--muted);
+  font: 600 11px var(--mono);
+  cursor: pointer;
+}
+
+.widget-order-status {
+  min-height: 17px;
+  margin: 0 4px;
+}
+
 .discover-result {
   margin: 0;
 }
@@ -122,6 +187,31 @@
   line-height: 1.7;
 }
 
+html.admin-theme-dark .security-warning {
+  border-color: #c38a37;
+  background: #352a17;
+  color: #f0c77e;
+}
+
+html.admin-theme-dark .mode-badge.configured,
+html.admin-theme-dark .success-notice {
+  border-color: #568366;
+  background: #1c3023;
+  color: #9bd1ab;
+}
+
+html.admin-theme-dark .rail-guided-fields {
+  background: #20231d;
+}
+
+html.admin-theme-dark .shutdown-panel {
+  border-color: #86554d;
+}
+
+html.admin-theme-dark .entry-widget {
+  box-shadow: 0 5px 18px rgba(0, 0, 0, .22);
+}
+
 @media (max-width: 760px) {
   .api-key-form {
     grid-template-columns: 1fr;
@@ -133,5 +223,14 @@
 
   .rail-guided-fields {
     grid-template-columns: 1fr;
+  }
+
+  .entry-widget .entry-item {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+
+  .entry-widget .entry-actions {
+    grid-column: 2 / -1;
+    justify-content: flex-end;
   }
 }

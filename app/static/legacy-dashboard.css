@@ -1,0 +1,61 @@
+/* Deliberately limited to CSS supported by Safari 10 / iOS 10. */
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #11130f;
+  color: #f8f5ea;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+* { box-sizing: border-box; }
+.clearfix:after { content: ""; display: table; clear: both; }
+.legacy-board { min-height: 100vh; padding: 28px; }
+.legacy-header { border-bottom: 1px solid #3a3d34; padding-bottom: 18px; margin-bottom: 16px; }
+.legacy-title { float: left; width: 65%; }
+.legacy-title p { margin: 0 0 7px; color: #a7a99f; font: 11px Menlo, Monaco, monospace; letter-spacing: 2px; }
+.legacy-title h1 { margin: 0; font-size: 48px; line-height: 1; }
+.legacy-clock { float: right; width: 35%; text-align: right; }
+.legacy-clock strong { display: block; font: 22px Menlo, Monaco, monospace; }
+.legacy-clock span { display: block; margin-top: 8px; color: #a7a99f; font: 10px Menlo, Monaco, monospace; }
+.legacy-warning { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #ef4b2f; color: #ef4b2f; font: 12px Menlo, Monaco, monospace; }
+.legacy-card { margin-bottom: 10px; border: 1px solid #3a3d34; background: #191b16; }
+.legacy-stop-header { min-height: 42px; padding: 8px 14px; border-bottom: 1px solid #3a3d34; }
+.legacy-stop-header h2 { display: inline; margin: 0 0 0 9px; font-size: 18px; vertical-align: middle; }
+.legacy-mode { display: inline-block; width: 25px; height: 25px; border: 1px solid #f8f5ea; border-radius: 50%; text-align: center; font: 11px/23px Menlo, Monaco, monospace; vertical-align: middle; }
+.legacy-row { display: table; width: 100%; table-layout: fixed; padding: 14px 16px; }
+.legacy-route-block, .legacy-times { display: table-cell; vertical-align: middle; }
+.legacy-route-block { width: 46%; }
+.legacy-route { display: inline-block; width: 96px; font: 38px/1 Menlo, Monaco, monospace; vertical-align: middle; }
+.legacy-destination-block { display: inline-block; max-width: 65%; vertical-align: middle; }
+.legacy-destination { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 18px; font-weight: bold; }
+.legacy-last { margin: 5px 0 0; color: #a7a99f; font: 12px Menlo, Monaco, monospace; }
+.legacy-times { width: 54%; text-align: right; white-space: nowrap; }
+.legacy-arrival { display: inline-block; margin-left: 25px; font: 42px/1 Menlo, Monaco, monospace; letter-spacing: -3px; }
+.legacy-arrival small { display: block; margin-top: 4px; color: #a7a99f; font-size: 8px; letter-spacing: 0; }
+.legacy-state-scheduled { color: #a7a99f; }
+.legacy-state-stale { border-bottom: 1px dotted #a7a99f; }
+.legacy-no-service { color: #a7a99f; font: 14px Menlo, Monaco, monospace; }
+.legacy-empty { min-height: 240px; padding-top: 100px; text-align: center; color: #a7a99f; }
+.legacy-empty strong, .legacy-empty span { display: block; }
+.legacy-empty strong { margin-bottom: 8px; color: #f8f5ea; font-size: 26px; }
+.legacy-footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid #3a3d34; color: #a7a99f; font: 10px Menlo, Monaco, monospace; }
+.legacy-footer-right { float: right; }
+
+.legacy-theme-light, .legacy-theme-light body { background: #f4f1e8; color: #171914; }
+.legacy-theme-light .legacy-header, .legacy-theme-light .legacy-footer,
+.legacy-theme-light .legacy-card, .legacy-theme-light .legacy-stop-header { border-color: #ccc8bd; }
+.legacy-theme-light .legacy-card { background: #fffdf7; }
+.legacy-theme-light .legacy-mode { border-color: #171914; }
+.legacy-theme-light .legacy-title p, .legacy-theme-light .legacy-clock span,
+.legacy-theme-light .legacy-last, .legacy-theme-light .legacy-footer,
+.legacy-theme-light .legacy-state-scheduled, .legacy-theme-light .legacy-no-service { color: #6f7269; }
+
+@media screen and (max-width: 760px) {
+  .legacy-board { padding: 14px; }
+  .legacy-title h1 { font-size: 34px; }
+  .legacy-clock strong { font-size: 16px; }
+  .legacy-row, .legacy-route-block, .legacy-times { display: block; width: 100%; }
+  .legacy-times { margin-top: 14px; text-align: left; }
+  .legacy-arrival { margin: 0 24px 0 0; font-size: 34px; }
+}
