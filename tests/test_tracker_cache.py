@@ -22,6 +22,7 @@ def test_profile_defaults_are_independent(tmp_path):
     home = db.profile("home")
     assert home["arrival_count"] == 3 and home["layout"] == "row"
     assert home["text_size"] == "medium"
+    assert home["card_columns"] == 1
 
 
 def test_operational_metadata_can_be_cleared_after_recovery(tmp_path):

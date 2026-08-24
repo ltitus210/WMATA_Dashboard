@@ -25,3 +25,39 @@ def test_admin_links_to_legacy_dashboard(tmp_path):
     response = app.test_client().get("/admin")
     assert b"Legacy iPad" in response.data
     assert b"/dashboard/home/legacy" in response.data
+
+
+def test_legacy_dashboard_respects_row_and_stop_card_layouts(tmp_path):
+    app = create_app({"TESTING": True, "SETTINGS": settings(tmp_path / "app.sqlite3")})
+    database = app.extensions["database"]
+    profile = database.profile("home")
+    now = "2026-08-24T00:00:00+00:00"
+    entries = [
+        (0, "1001", "Shared stop", "D40"),
+        (1, "1001", "Shared stop", "D4X"),
+        (2, "1002", "Other stop", "C61"),
+    ]
+    for position, stop_id, name, route in entries:
+        database.execute(
+            """INSERT INTO entries(profile_id,position,mode,location_id,location_name,route,
+               direction,destination,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            (profile["id"], position, "bus", stop_id, name, route, "", "", now, now),
+        )
+
+    database.execute("UPDATE profiles SET layout='card',card_columns=3 WHERE id=?", (profile["id"],))
+    cards = app.test_client().get("/dashboard/home/legacy")
+    assert b"legacy-layout-card legacy-card-columns-3" in cards.data
+    assert cards.data.count(b'class="legacy-card-shell"') == 2
+    assert cards.data.count(b"<h2>Shared stop</h2>") == 1
+    assert cards.data.count(b'class="legacy-row"') == 3
+
+    database.execute("UPDATE profiles SET layout='row' WHERE id=?", (profile["id"],))
+    rows = app.test_client().get("/dashboard/home/legacy")
+    assert b"legacy-layout-row legacy-card-columns-3" in rows.data
+    assert rows.data.count(b'class="legacy-card-shell"') == 3
+    assert rows.data.count(b"<h2>Shared stop</h2>") == 2
+
+    stylesheet = app.test_client().get("/static/legacy-dashboard.css").data
+    assert b".legacy-layout-card.legacy-card-columns-5 .legacy-card-shell { width: 20%; }" in stylesheet
+    assert b"float: left" in stylesheet
+    assert b"text-align: right" in stylesheet

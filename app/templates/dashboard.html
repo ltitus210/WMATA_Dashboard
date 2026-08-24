@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ state.profile.name }} · Arrivals{% endblock %}
-{% block body_class %}dashboard display-{{ state.profile.display_type }} theme-{{ state.profile.theme }} layout-{{ state.profile.layout }} text-size-{{ state.profile.text_size|replace('_','-') }}{% endblock %}
+{% block body_class %}dashboard display-{{ state.profile.display_type }} theme-{{ state.profile.theme }} layout-{{ state.profile.layout }} card-columns-{{ state.profile.card_columns }} text-size-{{ state.profile.text_size|replace('_','-') }}{% endblock %}
 {% block body %}
 <main id="board" aria-live="polite"></main>
 <script>window.WMATA_INITIAL_STATE={{ state|tojson }};</script>

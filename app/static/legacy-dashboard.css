@@ -19,6 +19,7 @@ html, body {
 .legacy-clock strong { display: block; font: 22px Menlo, Monaco, monospace; }
 .legacy-clock span { display: block; margin-top: 8px; color: #a7a99f; font: 10px Menlo, Monaco, monospace; }
 .legacy-warning { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #ef4b2f; color: #ef4b2f; font: 12px Menlo, Monaco, monospace; }
+.legacy-card-shell { width: 100%; }
 .legacy-card { margin-bottom: 10px; border: 1px solid #3a3d34; background: #191b16; }
 .legacy-stop-header { min-height: 42px; padding: 8px 14px; border-bottom: 1px solid #3a3d34; }
 .legacy-stop-header h2 { display: inline; margin: 0 0 0 9px; font-size: 18px; vertical-align: middle; }
@@ -42,6 +43,24 @@ html, body {
 .legacy-footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid #3a3d34; color: #a7a99f; font: 10px Menlo, Monaco, monospace; }
 .legacy-footer-right { float: right; }
 
+/* Float-based Stop Card columns remain compatible with Safari on iOS 10. */
+.legacy-layout-card .legacy-cards { margin-left: -5px; margin-right: -5px; }
+.legacy-layout-card .legacy-card-shell { float: left; padding-left: 5px; padding-right: 5px; }
+.legacy-layout-card.legacy-card-columns-1 .legacy-card-shell { width: 100%; }
+.legacy-layout-card.legacy-card-columns-2 .legacy-card-shell { width: 50%; }
+.legacy-layout-card.legacy-card-columns-3 .legacy-card-shell { width: 33.333333%; }
+.legacy-layout-card.legacy-card-columns-4 .legacy-card-shell { width: 25%; }
+.legacy-layout-card.legacy-card-columns-5 .legacy-card-shell { width: 20%; }
+.legacy-layout-card.legacy-card-columns-2 .legacy-card-shell:nth-child(2n+1),
+.legacy-layout-card.legacy-card-columns-3 .legacy-card-shell:nth-child(3n+1),
+.legacy-layout-card.legacy-card-columns-4 .legacy-card-shell:nth-child(4n+1),
+.legacy-layout-card.legacy-card-columns-5 .legacy-card-shell:nth-child(5n+1) { clear: left; }
+.legacy-layout-card .legacy-row, .legacy-layout-card .legacy-route-block,
+.legacy-layout-card .legacy-times { display: block; width: 100%; }
+.legacy-layout-card .legacy-route { width: auto; margin-right: 12px; }
+.legacy-layout-card .legacy-times { margin-top: 12px; text-align: right; white-space: normal; }
+.legacy-layout-card .legacy-arrival { margin: 0 0 0 20px; }
+
 .legacy-theme-light, .legacy-theme-light body { background: #f4f1e8; color: #171914; }
 .legacy-theme-light .legacy-header, .legacy-theme-light .legacy-footer,
 .legacy-theme-light .legacy-card, .legacy-theme-light .legacy-stop-header { border-color: #ccc8bd; }
@@ -58,6 +77,8 @@ html, body {
   .legacy-row, .legacy-route-block, .legacy-times { display: block; width: 100%; }
   .legacy-times { margin-top: 14px; text-align: left; }
   .legacy-arrival { margin: 0 24px 0 0; font-size: 34px; }
+  .legacy-layout-card .legacy-card-shell { float: none; clear: both; width: 100%; }
+  .legacy-layout-card .legacy-arrival { margin: 0 0 0 20px; }
 }
 
 /* Explicit values retain compatibility with Safari on iOS 10. Medium is unchanged. */

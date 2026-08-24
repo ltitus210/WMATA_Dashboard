@@ -200,10 +200,14 @@ hardware-specific partial/full refresh remains the display driver's responsibili
 ## Administration and diagnostics
 
 The admin StopID lookup fetches the full cached stop catalog, then the selected
-stop's schedule to derive current routes, directions, and TripHeadsigns. Static
-metadata can therefore be slightly stale without affecting a live prediction;
-diagnostics labels each cache category separately. Cache purge never touches
-profiles or entries.
+stop's schedule and predictions to derive routes, directions, and TripHeadsigns.
+Observed variants are retained so limited and express routes remain available
+outside their service periods. Every route advertised by the stop catalog is
+shown even when current direction details are unavailable; these route-only
+options accept any direction and destination until WMATA supplies a detailed
+variant. Static metadata can therefore be slightly stale without affecting a
+live prediction; diagnostics labels each cache category separately. Cache purge
+never touches profiles or entries.
 
 Useful URLs:
 

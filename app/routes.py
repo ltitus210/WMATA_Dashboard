@@ -114,6 +114,21 @@ def dashboard_state(slug: str) -> dict:
             "refresh_interval": profile["refresh_interval"]}
 
 
+def _group_stop_cards(entries: list[dict]) -> list[dict]:
+    """Group routes at the same physical stop while preserving configured order."""
+    groups: list[dict] = []
+    by_stop: dict[tuple[str, str], dict] = {}
+    for entry in entries:
+        key = (entry["mode"], entry["location_id"])
+        group = by_stop.get(key)
+        if group is None:
+            group = {"name": entry["location_name"], "mode": entry["mode"], "rows": []}
+            by_stop[key] = group
+            groups.append(group)
+        group["rows"].append(entry)
+    return groups
+
+
 @bp.get("/")
 def index():
     profiles = db().profiles()
@@ -127,7 +142,9 @@ def dashboard(slug: str):
 
 @bp.get("/dashboard/<slug>/legacy")
 def legacy_dashboard(slug: str):
-    rendered = render_template("legacy_dashboard.html", state=dashboard_state(slug))
+    state = dashboard_state(slug)
+    state["card_groups"] = _group_stop_cards(state["entries"])
+    rendered = render_template("legacy_dashboard.html", state=state)
     return Response(rendered, headers={
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
         "Pragma": "no-cache",
@@ -243,18 +260,26 @@ def update_profile(profile_id: int):
         if value not in allowed:
             abort(400, f"Invalid {key}")
         values[key] = value
+    try:
+        card_columns = int(request.form.get("card_columns", 1))
+    except ValueError:
+        abort(400, "Invalid card_columns")
+    if card_columns not in range(1, 6):
+        abort(400, "Invalid card_columns")
     values.update({
         "name": request.form.get("name", "Profile").strip(),
+        "card_columns": card_columns,
         "arrival_count": min(10, max(1, int(request.form.get("arrival_count", 3)))),
         "stale_threshold": min(3600, max(30, int(request.form.get("stale_threshold", 120)))),
         "refresh_interval": min(600, max(10, int(request.form.get("refresh_interval", 15)))),
         "show_bus": int("show_bus" in request.form), "show_rail": int("show_rail" in request.form),
         "show_legend": int("show_legend" in request.form), "show_occupancy": int("show_occupancy" in request.form),
     })
-    db().execute("""UPDATE profiles SET name=?,display_type=?,theme=?,layout=?,text_size=?,minute_format=?,near_format=?,
+    db().execute("""UPDATE profiles SET name=?,display_type=?,theme=?,layout=?,card_columns=?,text_size=?,minute_format=?,near_format=?,
         scheduled_format=?,stale_format=?,arrival_count=?,stale_threshold=?,refresh_interval=?,show_bus=?,show_rail=?,
         show_legend=?,show_occupancy=?,updated_at=? WHERE id=?""",
-        (values["name"], values["display_type"], values["theme"], values["layout"], values["text_size"], values["minute_format"],
+        (values["name"], values["display_type"], values["theme"], values["layout"], values["card_columns"],
+         values["text_size"], values["minute_format"],
          values["near_format"], values["scheduled_format"], values["stale_format"], values["arrival_count"],
          values["stale_threshold"], values["refresh_interval"], values["show_bus"], values["show_rail"],
          values["show_legend"], values["show_occupancy"], utcnow().isoformat(), profile_id))

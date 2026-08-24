@@ -57,3 +57,17 @@ html.admin-theme-dark .app-shell .secondary{background:transparent;color:var(--i
 .dashboard .arrival{font-size:var(--type-arrival)}.dashboard .arrival small{font-size:var(--type-arrival-note)}
 .dashboard .warning{font-size:var(--type-warning)}.dashboard .no-service{font-size:var(--type-no-service)}
 .dashboard footer{font-size:var(--type-footer)}.dashboard .empty-board strong{font-size:var(--type-empty)}
+
+/* Stop-card grid density and overflow behavior for interactive LCD/HDMI boards. */
+.dashboard.display-lcd{overflow-x:hidden;overflow-y:auto}
+.layout-card.card-columns-1 .cards{grid-template-columns:repeat(1,minmax(0,1fr))}
+.layout-card.card-columns-2 .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+.layout-card.card-columns-3 .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+.layout-card.card-columns-4 .cards{grid-template-columns:repeat(4,minmax(0,1fr))}
+.layout-card.card-columns-5 .cards{grid-template-columns:repeat(5,minmax(0,1fr))}
+.layout-card .arrival-card{min-width:0}.layout-card .arrival-card>header{min-width:0}
+.layout-card .arrival-card h2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layout-card .arrival-row{grid-template-columns:minmax(0,1fr);gap:12px;align-content:start}
+.layout-card .route-block{align-items:flex-start}.layout-card .route-block>div{min-width:0}
+.layout-card .route{min-width:auto}.layout-card .times{justify-content:flex-end;flex-wrap:wrap;text-align:right}
+@media(max-width:760px){.layout-card .cards{grid-template-columns:minmax(0,1fr)}}

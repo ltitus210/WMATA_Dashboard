@@ -161,17 +161,43 @@ class WMATAClient:
         today = datetime.now().astimezone().date().isoformat()
         schedule = self.stop_schedule(stop_id, today, force)["payload"]
         variants: dict[tuple[str, str, str], dict] = {}
+        cached_options = self.db.get_cache("bus_options", str(stop_id))
+        if cached_options:
+            for option in cached_options["payload"]:
+                key = (str(option.get("route", "")), str(option.get("direction", "")),
+                       str(option.get("destination", "")))
+                if key[0]:
+                    variants[key] = option
         for row in schedule:
             key = (str(row.get("RouteID", "")), str(row.get("DirectionNum", "")), str(row.get("TripHeadsign", "")))
-            variants[key] = {"route": key[0], "direction": key[1], "destination": key[2],
-                             "direction_text": row.get("TripDirectionText", "")}
+            if key[0]:
+                variants[key] = {"route": key[0], "direction": key[1], "destination": key[2],
+                                 "direction_text": row.get("TripDirectionText", "")}
         prediction_payload = self.predictions(stop_id, force)["payload"]
         predictions = prediction_payload.get("Predictions", []) if isinstance(prediction_payload, dict) else []
         for row in predictions:
             key = (str(row.get("RouteID", "")), str(row.get("DirectionNum", "")), str(row.get("DirectionText", "")))
-            variants.setdefault(key, {"route": key[0], "direction": key[1], "destination": key[2],
-                                      "direction_text": row.get("DirectionText", "")})
-        return {"stop": stop, "variants": sorted(variants.values(), key=lambda x: (x["route"], x["direction"], x["destination"])),
+            if key[0]:
+                variants.setdefault(key, {"route": key[0], "direction": key[1], "destination": key[2],
+                                          "direction_text": row.get("DirectionText", "")})
+
+        # Preserve variants seen during other service periods so limited/express routes
+        # remain configurable on evenings and weekends when they have no live prediction.
+        observed = sorted(variants.values(), key=lambda x: (x["route"], x["direction"], x["destination"]))
+        self.db.put_cache("bus_options", str(stop_id), observed, 604800,
+                          f"derived:{self.BASE}/Bus.svc/json/jStopSchedule")
+
+        # The stop catalog is the authoritative list of routes serving the stop. If
+        # WMATA supplies no current details, add a route-only option. Empty direction
+        # and destination values intentionally mean "any" to the prediction matcher.
+        advertised_routes = [str(route) for route in (stop.get("Routes") or []) if str(route)]
+        detailed_routes = {option["route"] for option in observed}
+        for route in advertised_routes:
+            if route not in detailed_routes:
+                observed.append({"route": route, "direction": "", "destination": "",
+                                 "direction_text": "", "provisional": True})
+
+        return {"stop": stop, "variants": sorted(observed, key=lambda x: (x["route"], x["direction"], x["destination"])),
                 "schedule_available": bool(schedule)}
 
     def discover_station(self, station_code: str, force: bool = False) -> dict:

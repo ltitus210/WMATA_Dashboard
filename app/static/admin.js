@@ -44,7 +44,10 @@ document.querySelectorAll('.discover-button').forEach(button => {
       data.variants.forEach((variant, index) => {
         const option = document.createElement('option');
         option.value = String(index);
-        option.textContent = `${data.stop.Name} · ${variant.route} · Direction ${variant.direction} → ${variant.destination}`;
+        const directionLabel = variant.direction === '' ? 'Any direction' : `Direction ${variant.direction}`;
+        const destinationLabel = variant.destination || 'Any destination';
+        const availabilityLabel = variant.provisional ? ' · no current service details' : '';
+        option.textContent = `${data.stop.Name} · ${variant.route} · ${directionLabel} → ${destinationLabel}${availabilityLabel}`;
         option.dataset.stopId = String(data.stop.StopID || id);
         option.dataset.stopName = data.stop.Name || '';
         option.dataset.route = variant.route;

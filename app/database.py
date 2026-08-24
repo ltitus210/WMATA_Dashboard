@@ -17,7 +17,8 @@ PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS profiles (
  id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
  display_type TEXT NOT NULL DEFAULT 'lcd', theme TEXT NOT NULL DEFAULT 'dark',
- layout TEXT NOT NULL DEFAULT 'row', text_size TEXT NOT NULL DEFAULT 'medium', show_bus INTEGER NOT NULL DEFAULT 1,
+ layout TEXT NOT NULL DEFAULT 'row', card_columns INTEGER NOT NULL DEFAULT 1,
+ text_size TEXT NOT NULL DEFAULT 'medium', show_bus INTEGER NOT NULL DEFAULT 1,
  show_rail INTEGER NOT NULL DEFAULT 0, arrival_count INTEGER NOT NULL DEFAULT 3,
  minute_format TEXT NOT NULL DEFAULT 'm', near_format TEXT NOT NULL DEFAULT 'DUE',
  scheduled_format TEXT NOT NULL DEFAULT 'superscript', stale_format TEXT NOT NULL DEFAULT '?',
@@ -82,6 +83,8 @@ class Database:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
             if "text_size" not in columns:
                 conn.execute("ALTER TABLE profiles ADD COLUMN text_size TEXT NOT NULL DEFAULT 'medium'")
+            if "card_columns" not in columns:
+                conn.execute("ALTER TABLE profiles ADD COLUMN card_columns INTEGER NOT NULL DEFAULT 1")
         os.chmod(self.path, 0o600)
 
     def seed_default_profile(self) -> None:
