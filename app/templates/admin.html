@@ -61,9 +61,14 @@
       </article>
       <details class="edit-entry"><summary>Edit {{ entry.route or entry.location_id }}</summary>
         <form class="settings-grid entry-form" method="post" action="{{ url_for('main.update_entry', entry_id=entry.id) }}">
-          <label>Mode<select name="mode"><option value="bus" {{ 'selected' if entry.mode=='bus' }}>Metrobus</option><option value="rail" {{ 'selected' if entry.mode=='rail' }}>Metrorail</option></select></label>
-          <label>ID<input name="location_id" value="{{ entry.location_id }}" required></label><label>Name<input name="location_name" value="{{ entry.location_name }}" required></label>
-          <label>Route / line<input name="route" value="{{ entry.route }}" placeholder="S2 or GR/YL"></label><label>Direction / rail group<input name="direction" value="{{ entry.direction }}" placeholder="Bus: 0/1 · Rail: 1/2 or blank"></label><label>Destination<input name="destination" value="{{ entry.destination }}"></label><label>Label<input name="label" value="{{ entry.label }}"></label>
+          <label>Mode<select class="entry-mode" name="mode"><option value="bus" {{ 'selected' if entry.mode=='bus' }}>Metrobus</option><option value="rail" {{ 'selected' if entry.mode=='rail' }}>Metrorail</option></select></label>
+          <div class="rail-guided-fields" hidden>
+            <label>Station<select class="rail-station-select" data-current-code="{{ entry.location_id }}"><option value="">Loading stations…</option></select></label>
+            <label>Line · group · destination<select class="rail-variant-select" data-current-route="{{ entry.route }}" data-current-direction="{{ entry.direction }}" data-current-destination="{{ entry.destination }}"><option value="">Select a station first</option></select></label>
+            <p class="rail-options-status field-note" aria-live="polite"></p>
+          </div>
+          <label class="manual-entry-field">ID<input class="entry-location-id" name="location_id" value="{{ entry.location_id }}" required></label><label class="manual-entry-field">Name<input class="entry-location-name" name="location_name" value="{{ entry.location_name }}" required></label>
+          <label class="manual-entry-field">Route / line<input class="entry-route" name="route" value="{{ entry.route }}" placeholder="S2 or GR/YL"></label><label class="manual-entry-field">Direction<input class="entry-direction" name="direction" value="{{ entry.direction }}" placeholder="0 or 1"></label><label class="manual-entry-field">Destination<input class="entry-destination" name="destination" value="{{ entry.destination }}"></label><label>Label<input name="label" value="{{ entry.label }}"></label>
           <label class="enabled-check"><input type="checkbox" name="enabled" {{ 'checked' if entry.enabled }}> Enabled</label><button>Save row</button>
         </form>
       </details>
@@ -72,21 +77,26 @@
     <details class="add-entry"><summary>Add an arrival row</summary>
       <form class="settings-grid entry-form" method="post" action="{{ url_for('main.create_entry') }}">
         <input type="hidden" name="profile_id" value="{{ profile.id }}">
-        <label>Mode<select name="mode"><option value="bus">Metrobus</option><option value="rail">Metrorail</option></select></label>
-        <label>Stop ID / station code<input name="location_id" required placeholder="1001234 or A01"></label>
-        <label>Display name<input name="location_name" required placeholder="14th St & Irving St NW"></label>
-        <label>Route / line<input name="route" placeholder="S2 or GR/YL"></label>
-        <label>Direction / rail group<input name="direction" placeholder="Bus: 0/1 · Rail: 1/2 or blank"></label>
-        <label>Destination<input name="destination" placeholder="Federal Triangle"></label>
+        <label>Mode<select class="entry-mode" name="mode"><option value="bus">Metrobus</option><option value="rail">Metrorail</option></select></label>
+        <div class="rail-guided-fields" hidden>
+          <label>Station<select class="rail-station-select"><option value="">Loading stations…</option></select></label>
+          <label>Line · group · destination<select class="rail-variant-select"><option value="">Select a station first</option></select></label>
+          <p class="rail-options-status field-note" aria-live="polite"></p>
+        </div>
+        <label class="manual-entry-field">Bus StopID<input class="entry-location-id" name="location_id" required placeholder="1001234"></label>
+        <label class="manual-entry-field">Display name<input class="entry-location-name" name="location_name" required placeholder="14th St & Irving St NW"></label>
+        <label class="manual-entry-field">Route<input class="entry-route" name="route" placeholder="S2"></label>
+        <label class="manual-entry-field">Direction<input class="entry-direction" name="direction" placeholder="0 or 1"></label>
+        <label class="manual-entry-field">Destination<input class="entry-destination" name="destination" placeholder="Federal Triangle"></label>
         <label>Optional label<input name="label"></label>
         <button>Add row</button>
       </form>
       <div class="discover-box">
         <label>Look up a bus StopID<input class="discover-id" placeholder="Enter StopID"></label>
         <button type="button" class="secondary discover-button">Discover routes & destinations</button>
-        <pre class="discover-result">Results will appear here.</pre>
+        <label class="bus-variant-field" hidden>Display name · route · direction · destination<select class="bus-variant-select"><option value="">Run discovery first</option></select></label>
+        <p class="discover-result field-note" aria-live="polite">Results will appear here.</p>
       </div>
-      <div class="discover-box rail-discover"><span>Need a station code?</span><button type="button" class="secondary stations-button">List Metrorail stations</button><pre class="stations-result">Station results will appear here.</pre></div>
     </details>
   </section>
   {% endfor %}

@@ -1,5 +1,24 @@
 document.querySelectorAll('.discover-button').forEach(button => {
   const box = button.closest('.discover-box');
+  const form = box.closest('.add-entry').querySelector('.entry-form');
+  const variantField = box.querySelector('.bus-variant-field');
+  const variantSelect = box.querySelector('.bus-variant-select');
+  const locationId = form.querySelector('.entry-location-id');
+  const locationName = form.querySelector('.entry-location-name');
+  const route = form.querySelector('.entry-route');
+  const direction = form.querySelector('.entry-direction');
+  const destination = form.querySelector('.entry-destination');
+
+  function applyBusVariant(option) {
+    if (!option || !option.dataset.route) return;
+    locationId.value = option.dataset.stopId;
+    locationName.value = option.dataset.stopName;
+    route.value = option.dataset.route;
+    direction.value = option.dataset.direction;
+    destination.value = option.dataset.destination;
+  }
+
+  variantSelect.addEventListener('change', () => applyBusVariant(variantSelect.selectedOptions[0]));
   button.addEventListener('click', async () => {
     const id = box.querySelector('.discover-id').value.trim();
     const output = box.querySelector('.discover-result');
@@ -10,37 +29,184 @@ document.querySelectorAll('.discover-button').forEach(button => {
     output.textContent = 'Querying WMATA…';
     button.disabled = true;
     try {
-      const response = await fetch(`/admin/discover/stop/${encodeURIComponent(id)}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-      const variants = data.variants.length
-        ? data.variants.map(v => `${v.route} · dir ${v.direction} · ${v.destination}`).join('\n')
-        : 'No scheduled or currently predicted route variants were returned.';
-      output.textContent = `${data.stop.Name}\n${data.stop.Lat}, ${data.stop.Lon}\n\n${variants}`;
+      const data = await fetchJson(`/admin/discover/stop/${encodeURIComponent(id)}`);
+      locationId.value = String(data.stop.StopID || id);
+      locationName.value = data.stop.Name || '';
+      variantSelect.innerHTML = '';
+      if (!data.variants.length) {
+        variantField.hidden = true;
+        route.value = '';
+        direction.value = '';
+        destination.value = '';
+        output.textContent = `${data.stop.Name} found, but WMATA returned no route variants.`;
+        return;
+      }
+      data.variants.forEach((variant, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = `${data.stop.Name} · ${variant.route} · Direction ${variant.direction} → ${variant.destination}`;
+        option.dataset.stopId = String(data.stop.StopID || id);
+        option.dataset.stopName = data.stop.Name || '';
+        option.dataset.route = variant.route;
+        option.dataset.direction = variant.direction;
+        option.dataset.destination = variant.destination;
+        variantSelect.append(option);
+      });
+      variantField.hidden = false;
+      applyBusVariant(variantSelect.options[0]);
+      output.textContent = `${data.variants.length} service option${data.variants.length === 1 ? '' : 's'} loaded. Choose one above to fill the Metrobus fields.`;
     } catch (error) {
+      variantField.hidden = true;
       output.textContent = `Lookup failed: ${error.message || error}`;
     } finally {
       button.disabled = false;
     }
   });
 });
-document.querySelectorAll('.rail-discover').forEach(box => {
-  const button = box.querySelector('.stations-button');
-  button.addEventListener('click', async () => {
-    const output = box.querySelector('.stations-result'); output.textContent = 'Querying WMATA…';
-    button.disabled = true;
-    try {
-      const response = await fetch('/admin/discover/stations');
-      const stations = await response.json();
-      if (!response.ok) throw new Error(stations.error || `HTTP ${response.status}`);
-      if (!Array.isArray(stations)) throw new Error('WMATA returned an unexpected station response.');
-      output.textContent = stations.map(s => `${s.Code} · ${s.Name} · ${[s.LineCode1,s.LineCode2,s.LineCode3].filter(Boolean).join('/')}`).join('\n');
-    } catch (error) {
-      output.textContent = `Lookup failed: ${error.message || error}`;
-    } finally {
-      button.disabled = false;
-    }
+let stationCatalogPromise;
+
+async function fetchJson(url) {
+  const response = await fetch(url);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
+function stationLines(station) {
+  return [station.LineCode1, station.LineCode2, station.LineCode3, station.LineCode4].filter(Boolean);
+}
+
+function normalizedDestination(value) {
+  return String(value || '').toUpperCase().replace(/\bAVENUE\b|\bAV\b/g, 'AVE').replace(/[^A-Z0-9]+/g, ' ').trim();
+}
+
+function loadStationCatalog() {
+  stationCatalogPromise ||= fetchJson('/admin/discover/stations').then(stations => {
+    if (!Array.isArray(stations)) throw new Error('WMATA returned an unexpected station response.');
+    return stations.sort((a, b) => a.Name.localeCompare(b.Name));
   });
+  return stationCatalogPromise;
+}
+
+document.querySelectorAll('.entry-form').forEach(form => {
+  const mode = form.querySelector('.entry-mode');
+  const guided = form.querySelector('.rail-guided-fields');
+  const stationSelect = form.querySelector('.rail-station-select');
+  const variantSelect = form.querySelector('.rail-variant-select');
+  const status = form.querySelector('.rail-options-status');
+  const manualFields = form.querySelectorAll('.manual-entry-field');
+  const locationId = form.querySelector('.entry-location-id');
+  const locationName = form.querySelector('.entry-location-name');
+  const route = form.querySelector('.entry-route');
+  const direction = form.querySelector('.entry-direction');
+  const destination = form.querySelector('.entry-destination');
+  let stations = [];
+
+  function applyVariant(option) {
+    if (!option || !option.dataset.line) return;
+    route.value = option.dataset.line;
+    direction.value = option.dataset.group;
+    destination.value = option.dataset.destination;
+  }
+
+  async function loadVariants(code, preserveCurrent) {
+    variantSelect.disabled = true;
+    variantSelect.innerHTML = '<option value="">Loading services…</option>';
+    status.textContent = 'Loading cached routes and destinations…';
+    try {
+      const data = await fetchJson(`/admin/discover/station/${encodeURIComponent(code)}`);
+      const variants = data.variants || [];
+      variantSelect.innerHTML = '';
+      if (!variants.length) {
+        variantSelect.innerHTML = '<option value="">No service variants currently available</option>';
+        route.value = (data.lines || []).join('/');
+        direction.value = '';
+        destination.value = '';
+        status.textContent = 'Station selected. WMATA has not returned a destination variant yet.';
+        return;
+      }
+      variants.forEach((variant, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = `${variant.line} · Group ${variant.group} → ${variant.destination}`;
+        option.dataset.line = variant.line;
+        option.dataset.group = variant.group;
+        option.dataset.destination = variant.destination;
+        variantSelect.append(option);
+      });
+      let selected = variantSelect.options[0];
+      if (preserveCurrent) {
+        const configuredLines = new Set(String(variantSelect.dataset.currentRoute || route.value).toUpperCase().split(/[\s,;/]+/).filter(Boolean));
+        const configuredGroup = String(variantSelect.dataset.currentDirection || direction.value);
+        const configuredDestination = normalizedDestination(variantSelect.dataset.currentDestination || destination.value);
+        selected = [...variantSelect.options].find(option =>
+          (!configuredLines.size || configuredLines.has(option.dataset.line)) &&
+          (!['1', '2'].includes(configuredGroup) || configuredGroup === option.dataset.group) &&
+          (!configuredDestination || configuredDestination === normalizedDestination(option.dataset.destination))
+        ) || selected;
+      }
+      selected.selected = true;
+      applyVariant(selected);
+      status.textContent = `${data.station.Name} (${data.station.Code}) · ${(data.lines || []).join('/')} · cached for 24 hours`;
+    } catch (error) {
+      variantSelect.innerHTML = '<option value="">Unable to load services</option>';
+      status.textContent = `Rail lookup failed: ${error.message || error}`;
+    } finally {
+      variantSelect.disabled = false;
+    }
+  }
+
+  async function enableRailMode() {
+    guided.hidden = false;
+    manualFields.forEach(field => { field.hidden = true; });
+    stationSelect.disabled = true;
+    status.textContent = 'Loading cached station catalog…';
+    try {
+      stations = await loadStationCatalog();
+      const currentCode = (stationSelect.dataset.currentCode || locationId.value).toUpperCase();
+      stationSelect.innerHTML = '<option value="">Choose a Metrorail station…</option>';
+      stations.forEach(station => {
+        const option = document.createElement('option');
+        option.value = station.Code;
+        option.textContent = `${station.Name} (${station.Code}) · ${stationLines(station).join('/')}`;
+        stationSelect.append(option);
+      });
+      if (currentCode && stations.some(station => station.Code === currentCode)) {
+        stationSelect.value = currentCode;
+        await loadVariants(currentCode, true);
+      } else {
+        status.textContent = `${stations.length} stations loaded from the 24-hour cache.`;
+      }
+    } catch (error) {
+      stationSelect.innerHTML = '<option value="">Unable to load stations</option>';
+      status.textContent = `Station lookup failed: ${error.message || error}`;
+    } finally {
+      stationSelect.disabled = false;
+    }
+  }
+
+  function updateMode() {
+    if (mode.value === 'rail') {
+      enableRailMode();
+    } else {
+      guided.hidden = true;
+      manualFields.forEach(field => { field.hidden = false; });
+    }
+  }
+
+  stationSelect.addEventListener('change', async () => {
+    const station = stations.find(item => item.Code === stationSelect.value);
+    if (!station) return;
+    locationId.value = station.Code;
+    locationName.value = station.Name;
+    route.value = stationLines(station).join('/');
+    direction.value = '';
+    destination.value = '';
+    await loadVariants(station.Code, false);
+  });
+  variantSelect.addEventListener('change', () => applyVariant(variantSelect.selectedOptions[0]));
+  mode.addEventListener('change', updateMode);
+  updateMode();
 });
 document.querySelectorAll('.shutdown-form').forEach(form => {
   form.addEventListener('submit', event => {

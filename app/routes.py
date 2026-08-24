@@ -326,6 +326,15 @@ def discover_stations():
         return jsonify(error=str(exc)), 502
 
 
+@bp.get("/admin/discover/station/<station_code>")
+@protected
+def discover_station(station_code: str):
+    try:
+        return jsonify(client().discover_station(station_code))
+    except WMATAError as exc:
+        return jsonify(error=str(exc)), 502
+
+
 @bp.post("/admin/cache/purge")
 @protected
 def purge_cache():

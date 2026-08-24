@@ -173,3 +173,36 @@ class WMATAClient:
                                       "direction_text": row.get("DirectionText", "")})
         return {"stop": stop, "variants": sorted(variants.values(), key=lambda x: (x["route"], x["direction"], x["destination"])),
                 "schedule_available": bool(schedule)}
+
+    def discover_station(self, station_code: str, force: bool = False) -> dict:
+        """Return cached station metadata and accumulated passenger service variants."""
+        code = station_code.strip().upper()
+        stations = self.stations(force)["payload"]
+        station = next((s for s in stations if str(s.get("Code", "")).upper() == code), None)
+        if not station:
+            raise WMATAError(f"Station {code} was not found")
+
+        cached_options = self.db.get_cache("rail_options", code)
+        variants: dict[tuple[str, str, str], dict] = {}
+        if cached_options:
+            for option in cached_options["payload"]:
+                key = (str(option.get("line", "")), str(option.get("group", "")),
+                       str(option.get("destination", "")))
+                variants[key] = option
+
+        trains = self.rail_predictions(code, force)["payload"]
+        for train in trains:
+            line = str(train.get("Line", "")).strip().upper()
+            group = str(train.get("Group", "")).strip()
+            destination = str(train.get("DestinationName", "")).strip()
+            if not line or line in {"NO", "--"} or not destination or destination.lower() == "no passenger":
+                continue
+            key = (line, group, destination)
+            variants[key] = {"line": line, "group": group, "destination": destination}
+
+        options = sorted(variants.values(), key=lambda x: (x["line"], x["group"], x["destination"]))
+        self.db.put_cache("rail_options", code, options, 86400,
+                          f"derived:{self.BASE}/StationPrediction.svc/json/GetPrediction/{code}")
+        lines = [str(station.get(f"LineCode{index}", "")).strip()
+                 for index in range(1, 5) if station.get(f"LineCode{index}")]
+        return {"station": station, "lines": lines, "variants": options}

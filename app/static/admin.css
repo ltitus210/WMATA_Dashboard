@@ -35,16 +35,44 @@
   color: #28613d;
 }
 
-.stations-result,
 .discover-result {
-  max-height: 320px;
-  overflow: auto;
+  margin: 0;
 }
 
-.discover-button:disabled,
-.stations-button:disabled {
+.discover-button:disabled {
   cursor: wait;
   opacity: .6;
+}
+
+.rail-guided-fields {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.4fr);
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--accent));
+}
+
+.rail-guided-fields[hidden],
+.bus-variant-field[hidden],
+.manual-entry-field[hidden] {
+  display: none;
+}
+
+.bus-variant-field {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+  color: var(--muted);
+  font: 500 11px var(--mono);
+  letter-spacing: .05em;
+}
+
+.rail-options-status {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .shutdown-panel {
@@ -100,6 +128,10 @@
   }
 
   .system-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .rail-guided-fields {
     grid-template-columns: 1fr;
   }
 }

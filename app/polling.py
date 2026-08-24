@@ -53,6 +53,11 @@ class PollingManager:
     def poll_once(self, force: bool = False) -> None:
         entries = self.db.rows("SELECT * FROM entries WHERE enabled=1 ORDER BY profile_id,position")
         bus_entries, rail_entries = [e for e in entries if e["mode"] == "bus"], [e for e in entries if e["mode"] == "rail"]
+        try:
+            # The station catalog has a one-day TTL, so this is normally a cache read.
+            self.client.stations(force)
+        except WMATAError:
+            pass
         stops_by_id = {}
         if bus_entries:
             try:
@@ -80,8 +85,8 @@ class PollingManager:
                     pred = prediction_keys.get(key)
                     if str(position.get("RouteID", "")) == route:
                         self.tracker.observe(stop, position, pred.get("Minutes") if pred else None, pred is not None)
-        for codes in {e["location_id"] for e in rail_entries}:
-            self.client.rail_predictions(codes, force)
+        for code in {e["location_id"] for e in rail_entries}:
+            self.client.discover_station(code, force)
         self.tracker.expire()
         self.db.set_meta("last_poll_completed", datetime.now().astimezone().isoformat())
 

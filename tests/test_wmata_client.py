@@ -84,3 +84,30 @@ def test_stop_discovery_falls_back_to_live_prediction_variants(tmp_path):
     assert result["variants"] == [{"route": "D44", "direction": "1",
                                     "destination": "South to Federal Triangle",
                                     "direction_text": "South to Federal Triangle"}]
+
+
+def test_station_discovery_builds_and_accumulates_cached_service_options(tmp_path):
+    db = Database(str(tmp_path / "client.sqlite3"))
+    db.initialize()
+    client = WMATAClient("test-key", db)
+    client.stations = lambda force=False: {"payload": [{
+        "Code": "E04", "Name": "Columbia Heights", "LineCode1": "GR", "LineCode2": "YL"
+    }]}
+    client.rail_predictions = lambda code, force=False: {"payload": [
+        {"Line": "GR", "Group": "2", "DestinationName": "Branch Av"},
+        {"Line": "No", "Group": "1", "DestinationName": "No Passenger"},
+    ]}
+
+    first = client.discover_station("e04")
+    assert first["lines"] == ["GR", "YL"]
+    assert first["variants"] == [{"line": "GR", "group": "2", "destination": "Branch Av"}]
+
+    client.rail_predictions = lambda code, force=False: {"payload": [
+        {"Line": "YL", "Group": "2", "DestinationName": "Huntington"}
+    ]}
+    second = client.discover_station("E04")
+    assert second["variants"] == [
+        {"line": "GR", "group": "2", "destination": "Branch Av"},
+        {"line": "YL", "group": "2", "destination": "Huntington"},
+    ]
+    assert db.get_cache("rail_options", "E04")["expired"] is False
