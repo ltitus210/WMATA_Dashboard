@@ -32,11 +32,11 @@
     <div class="panel-title">
       <div><p class="eyebrow">PROFILE / {{ profile.slug|upper }}</p><h2>{{ profile.name }}</h2></div>
       <div class="actions">
-        <a class="button secondary" href="{{ url_for('main.dashboard', slug=profile.slug) }}">Open board ↗</a>
-        <a class="button secondary" href="{{ url_for('main.legacy_dashboard', slug=profile.slug) }}">Legacy iPad ↗</a>
-        <a class="button secondary" href="{{ url_for('main.eink_profile_index', slug=profile.slug) }}">E-Ink pages ↗</a>
-        <a class="button secondary" href="{{ url_for('main.eink_profile_png', slug=profile.slug) }}">E-Ink PNG ↗</a>
-        <a class="button secondary" href="{{ url_for('main.eink_profile_rgb565', slug=profile.slug) }}">E-Ink RGB565 ↗</a>
+        <a class="button secondary" href="{{ url_for('main.dashboard', slug=profile.slug) }}" target="_blank" rel="noopener">Open board ↗</a>
+        <a class="button secondary" href="{{ url_for('main.legacy_dashboard', slug=profile.slug) }}" target="_blank" rel="noopener">Legacy Browser ↗</a>
+        <a class="button secondary" href="{{ url_for('main.eink_profile_index', slug=profile.slug) }}" target="_blank" rel="noopener">E-Ink pages ↗</a>
+        <a class="button secondary" href="{{ url_for('main.eink_profile_png', slug=profile.slug) }}" target="_blank" rel="noopener">E-Ink PNG ↗</a>
+        <a class="button secondary" href="{{ url_for('main.eink_profile_rgb565', slug=profile.slug) }}" target="_blank" rel="noopener">E-Ink RGB565 ↗</a>
       </div>
     </div>
     <form class="settings-grid" method="post" action="{{ url_for('main.update_profile', profile_id=profile.id) }}">

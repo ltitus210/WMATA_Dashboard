@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User=wmata-dashboard
+Group=wmata-dashboard
 WorkingDirectory=/opt/wmata-dashboard
 EnvironmentFile=/opt/wmata-dashboard/.env
 ExecStart=/opt/wmata-dashboard/.venv/bin/waitress-serve --host=0.0.0.0 --port=8080 --call app:create_app
@@ -18,4 +18,3 @@ NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
-

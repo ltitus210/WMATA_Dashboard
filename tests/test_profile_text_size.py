@@ -79,6 +79,9 @@ def test_stop_cards_support_one_to_five_columns_and_lcd_scrolling(tmp_path):
     assert b".layout-card.card-columns-5 .cards" in stylesheet
     assert b".layout-card .times{justify-content:flex-end;flex-wrap:wrap;text-align:right}" in stylesheet
     assert b".dashboard.display-lcd{overflow-x:hidden;overflow-y:auto}" in stylesheet
+    assert b"@media screen and (max-width:600px) and (orientation:portrait)" in stylesheet
+    assert b".dashboard .destination{white-space:normal" in stylesheet
+    assert b".dashboard .times,.dashboard.layout-card .times{justify-content:flex-start" in stylesheet
 
 
 def test_profile_rejects_invalid_stop_card_columns(tmp_path):

@@ -71,3 +71,40 @@ html.admin-theme-dark .app-shell .secondary{background:transparent;color:var(--i
 .layout-card .route-block{align-items:flex-start}.layout-card .route-block>div{min-width:0}
 .layout-card .route{min-width:auto}.layout-card .times{justify-content:flex-end;flex-wrap:wrap;text-align:right}
 @media(max-width:760px){.layout-card .cards{grid-template-columns:minmax(0,1fr)}}
+
+/* Portrait phones use a compact, single-column information hierarchy. */
+@media screen and (max-width:600px) and (orientation:portrait){
+  .dashboard{
+    --type-title:32px;--type-clock:22px;--type-clock-date:10px;--type-stop:15px;
+    --type-mode:10px;--type-route:32px;--type-destination:16px;--type-last:11px;
+    --type-arrival:34px;--type-arrival-note:8px;--type-warning:11px;
+    --type-no-service:13px;--type-footer:9px;--type-empty:24px;
+    overflow-x:hidden;overflow-y:auto
+  }
+  .dashboard.text-size-extra-small{--type-title:26px;--type-clock:18px;--type-route:25px;--type-destination:13px;--type-arrival:27px}
+  .dashboard.text-size-small{--type-title:29px;--type-clock:20px;--type-route:28px;--type-destination:14px;--type-arrival:30px}
+  .dashboard.text-size-large{--type-title:35px;--type-clock:24px;--type-route:36px;--type-destination:18px;--type-arrival:38px}
+  .dashboard.text-size-extra-large{--type-title:39px;--type-clock:26px;--type-route:40px;--type-destination:20px;--type-arrival:42px}
+  .dashboard #board{min-width:0;padding:12px}
+  .dashboard .board-header{align-items:flex-end;gap:12px;padding-bottom:13px;margin-bottom:12px}
+  .dashboard .board-header>div:first-child{min-width:0}
+  .dashboard .board-header h1{line-height:1;overflow-wrap:anywhere}
+  .dashboard .eyebrow{font-size:9px;margin-bottom:5px}
+  .dashboard .clock{flex:0 0 auto}
+  .dashboard .clock span{margin-top:5px}
+  .dashboard .warning{margin-bottom:10px;padding:9px 10px;line-height:1.4}
+  .dashboard .cards,.dashboard.layout-card .cards{grid-template-columns:minmax(0,1fr);gap:8px}
+  .dashboard .arrival-card{min-width:0}
+  .dashboard .arrival-card>header{gap:8px;padding:8px 10px}
+  .dashboard .mode-symbol{width:23px;height:23px;flex:0 0 23px}
+  .dashboard .arrival-card h2{min-width:0;white-space:normal;overflow-wrap:anywhere}
+  .dashboard .arrival-row,.dashboard.layout-card .arrival-row{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px 10px}
+  .dashboard .route-block,.dashboard.layout-card .route-block{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px}
+  .dashboard .route-block>div{min-width:0}
+  .dashboard .route{min-width:62px}
+  .dashboard .destination{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.15;overflow-wrap:anywhere}
+  .dashboard .last{margin-top:4px}
+  .dashboard .times,.dashboard.layout-card .times{justify-content:flex-start;gap:10px 20px;flex-wrap:wrap;text-align:left}
+  .dashboard .arrival{letter-spacing:-.07em}
+  .dashboard footer{display:grid;grid-template-columns:1fr;gap:5px;margin-top:12px;padding-top:9px}
+}

@@ -1,8 +1,9 @@
 # WMATA Arrival Display
 
-A minimalist, always-on Metrobus and optional Metrorail arrival board for a
-Raspberry Pi. One Python process centrally polls WMATA, stores last-good data in
-SQLite, and serves lightweight dashboard pages to every screen on the LAN.
+A minimalist, always-on Metrobus and optional Metrorail arrival board for any
+machine capable of running Python 3.13. One Python process centrally polls WMATA,
+stores last-good data in SQLite, and serves lightweight dashboard pages to every
+screen on the LAN.
 
 The dashboard intentionally distinguishes **fresh live**, **stale live**, and
 **scheduled fallback** arrivals. It never declares that a bus served a stop based
@@ -22,7 +23,7 @@ python run.py
 
 Open `http://127.0.0.1:8080/admin` to configure stops and
 `http://127.0.0.1:8080/dashboard/home` for the default display. With the default
-`WMATA_BIND=0.0.0.0`, use the Pi's LAN IP from another device.
+`WMATA_BIND=0.0.0.0`, use the server's LAN IP from another device.
 
 The WMATA API key can be entered in the admin interface or supplied through
 `WMATA_API_KEY` in `.env`. Environment configuration takes precedence after an
@@ -146,17 +147,18 @@ is configured. Because browser submission still travels over the network, enable
 admin authentication and use a trusted LAN or an HTTPS reverse proxy before
 entering a key remotely. Keep `instance/` and database backups out of Git.
 
-## Raspberry Pi OS deployment
+## Linux systemd deployment
 
-Use a 64-bit Raspberry Pi OS release that packages Python 3.13 (Debian 13/Trixie
-or later). Verify first with `python3 --version`; on older Bookworm images install
-Python 3.13 through your maintained package/source policy before proceeding.
+The application is hardware-independent and requires Python 3.13 or newer. The
+following example targets a Debian-family Linux server; use the equivalent Python,
+virtual-environment, and service-management tools on other operating systems.
+Verify the interpreter first with `python3 --version`.
 
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip chromium git
 sudo mkdir -p /opt/wmata-dashboard
-sudo chown pi:pi /opt/wmata-dashboard
+sudo chown "$USER":"$(id -gn)" /opt/wmata-dashboard
 # copy this project into /opt/wmata-dashboard
 cd /opt/wmata-dashboard
 python3 -m venv .venv
@@ -167,10 +169,18 @@ chmod 600 .env
 ```
 
 Edit `.env`, supply the API key and a random secret, and optionally set admin
-credentials. Test with:
+credentials. Before installing the included backend service, create its dedicated
+account and give it ownership of the installation:
 
 ```bash
-.venv/bin/waitress-serve --host=0.0.0.0 --port=8080 --call app:create_app
+sudo useradd --system --home /opt/wmata-dashboard --shell /usr/sbin/nologin wmata-dashboard
+sudo chown -R wmata-dashboard:wmata-dashboard /opt/wmata-dashboard
+```
+
+Test with:
+
+```bash
+sudo -u wmata-dashboard .venv/bin/waitress-serve --host=0.0.0.0 --port=8080 --call app:create_app
 ```
 
 Install automatic startup:
@@ -183,12 +193,14 @@ sudo systemctl status wmata-dashboard
 journalctl -u wmata-dashboard -f
 ```
 
-If your login user is not `pi`, edit `User`, `Group`, `WorkingDirectory`, and the
-paths in the service file. The SQLite database survives app and Pi restarts.
+If you use a different service account or installation directory, edit `User`,
+`Group`, `WorkingDirectory`, and the paths in the service file. The SQLite
+database survives application and operating-system restarts.
 
 ## Chromium kiosk
 
-Edit `wmata-kiosk.service` to select the profile URL and Pi username, then:
+Edit `wmata-kiosk.service` to select the profile URL, graphical login account,
+home directory, display server, and Chromium executable for the host, then:
 
 ```bash
 sudo cp wmata-kiosk.service /etc/systemd/system/
@@ -197,9 +209,9 @@ sudo systemctl enable --now wmata-kiosk
 ```
 
 The kiosk unit uses `Restart=always`, suppresses Chromium crash UI, and waits for
-the backend unit. For Wayland-based Raspberry Pi desktops, autostart Chromium from
-the desktop session instead if `DISPLAY=:0` is unavailable. e-Ink profiles poll
-less frequently, disable animation, and only replace the DOM when data changes;
+the backend unit. For Wayland-based desktops, autostart Chromium from the desktop
+session instead if `DISPLAY=:0` is unavailable. e-Ink profiles poll less
+frequently, disable animation, and only replace the DOM when data changes;
 hardware-specific partial/full refresh remains the display driver's responsibility.
 
 ## Generic e-reader and e-ink display frames
@@ -340,7 +352,7 @@ reads, and frame response headers.
 - **Rate limiting/outage:** increase central poll interval. Existing clients share
   one cache and do not multiply WMATA calls.
 - **Clock errors:** enable NTP (`timedatectl`) and confirm `America/New_York` data is
-  installed. The application itself does not mutate the Pi timezone.
+  installed. The application itself does not mutate the host timezone.
 
 ## Upstream references
 

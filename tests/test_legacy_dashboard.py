@@ -23,8 +23,9 @@ def test_legacy_dashboard_is_server_rendered_and_self_refreshing(tmp_path):
 def test_admin_links_to_legacy_dashboard(tmp_path):
     app = create_app({"TESTING": True, "SETTINGS": settings(tmp_path / "app.sqlite3")})
     response = app.test_client().get("/admin")
-    assert b"Legacy iPad" in response.data
+    assert b"Legacy Browser" in response.data
     assert b"/dashboard/home/legacy" in response.data
+    assert response.data.count(b'target="_blank" rel="noopener"') == 5
 
 
 def test_legacy_dashboard_respects_row_and_stop_card_layouts(tmp_path):

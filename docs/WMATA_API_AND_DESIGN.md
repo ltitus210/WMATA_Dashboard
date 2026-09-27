@@ -24,7 +24,7 @@ never given the key.
 
 The static and real-time GTFS feeds are the authoritative expansion point for
 schedule and occupancy data. The first implementation keeps protobuf support an
-optional dependency: legacy JSON remains usable on a small Pi without it.
+optional dependency: legacy JSON remains usable on a resource-constrained host without it.
 
 ## Limitations and decisions
 
