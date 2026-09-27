@@ -7,14 +7,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="format-detection" content="telephone=no">
   <meta http-equiv="refresh" content="{{ state.refresh_interval }}">
-  <title>{{ state.profile.name }} · Legacy departures</title>
+  <title>{{ state.profile.name }} · Legacy arrivals</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='legacy-dashboard.css') }}">
 </head>
 <body class="legacy-dashboard legacy-theme-{{ state.profile.theme }} legacy-layout-{{ state.profile.layout }} legacy-card-columns-{{ state.profile.card_columns }} text-size-{{ state.profile.text_size|replace('_','-') }}">
   <div class="legacy-board">
     <div class="legacy-header clearfix">
       <div class="legacy-title">
-        <p>LIVE DEPARTURES</p>
+        <p>LIVE ARRIVALS</p>
         <h1>{{ state.profile.name }}</h1>
       </div>
       <div class="legacy-clock">

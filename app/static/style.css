@@ -104,7 +104,7 @@ html.admin-theme-dark .app-shell .secondary{background:transparent;color:var(--i
   .dashboard .route{min-width:62px}
   .dashboard .destination{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.15;overflow-wrap:anywhere}
   .dashboard .last{margin-top:4px}
-  .dashboard .times,.dashboard.layout-card .times{justify-content:flex-start;gap:10px 20px;flex-wrap:wrap;text-align:left}
-  .dashboard .arrival{letter-spacing:-.07em}
+  .dashboard .times,.dashboard.layout-card .times{width:100%;justify-content:flex-end;gap:10px 20px;flex-wrap:wrap;text-align:right}
+  .dashboard .arrival{letter-spacing:-.07em;text-align:right}
   .dashboard footer{display:grid;grid-template-columns:1fr;gap:5px;margin-top:12px;padding-top:9px}
 }

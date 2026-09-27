@@ -17,6 +17,8 @@ def test_legacy_dashboard_is_server_rendered_and_self_refreshing(tmp_path):
     assert b'http-equiv="refresh" content="15"' in response.data
     assert b"legacy-dashboard.css" in response.data
     assert b"<script" not in response.data
+    assert b"LIVE ARRIVALS" in response.data
+    assert b"DEPARTURES" not in response.data
     assert response.headers["Cache-Control"].startswith("no-store")
 
 

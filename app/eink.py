@@ -157,7 +157,7 @@ def render_eink_image(state: dict, font_path: str = "", page: int = 1) -> Image.
     freshness = max(0, int(state.get("freshness_seconds") or 0))
     data_time = now - timedelta(seconds=freshness)
 
-    draw.text((margin, 22), "WMATA DEPARTURES", font=bold[18], fill=black)
+    draw.text((margin, 22), "WMATA ARRIVALS", font=bold[18], fill=black)
     title = _fit_text(draw, str(profile.get("name") or "Transit"), bold[42], 350)
     draw.text((margin, 48), title, font=bold[42], fill=black)
     draw.text((WIDTH - margin, 30), now.strftime("%-I:%M %p"), font=bold[30], fill=black, anchor="ra")

@@ -93,7 +93,7 @@ class VehicleStateTracker:
         return row
 
     def reconcile_missed_passages(self, stop_id: str, route: str) -> int:
-        """Recover departures confirmed by a 0-minute prediction and sparse GPS updates."""
+        """Recover stop passages confirmed by a 0-minute prediction and sparse GPS updates."""
         cutoff = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
         rows = self.db.rows(
             """SELECT * FROM vehicle_observations WHERE stop_id=? AND route=?
