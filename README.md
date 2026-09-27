@@ -44,6 +44,7 @@ application restart.
 - Optional HTTP Basic authentication for admin and diagnostics
 - Diagnostics for uptime, local time, WMATA requests, cache, and vehicle evidence
 - Confirmed, clean server shutdown from the protected administration interface
+- Generic 600×800 e-reader PNG and little-endian RGB565 frame endpoints
 - systemd backend and Chromium kiosk units
 
 ## Architecture and data correctness
@@ -132,6 +133,10 @@ Environment variables are documented in `.env.example`:
 | `WMATA_LOG_MAX_BYTES` | `2000000` | Bytes before log rotation |
 | `WMATA_LOG_BACKUP_COUNT` | `3` | Number of rotated logs retained |
 | `WMATA_SECRET_KEY` | development value | Set a random production value |
+| `WMATA_EINK_PROFILE` | `home` | Profile rendered for the e-reader endpoints |
+| `WMATA_EINK_FRAME_DIR` | `instance/eink` | Atomic last-good PNG/RGB565 frame cache |
+| `WMATA_EINK_REFRESH_SECONDS` | `30` | Minimum seconds between e-ink frame renders |
+| `WMATA_EINK_FONT` | empty | Optional absolute TrueType font path |
 
 The API key is only read server-side and is never emitted in HTML or JSON.
 Keys entered through the admin page are stored in SQLite's separate
@@ -197,6 +202,64 @@ the desktop session instead if `DISPLAY=:0` is unavailable. e-Ink profiles poll
 less frequently, disable animation, and only replace the DOM when data changes;
 hardware-specific partial/full refresh remains the display driver's responsibility.
 
+## Generic e-reader and e-ink display frames
+
+The server renders a dedicated high-contrast portrait frame for constrained
+e-readers and e-ink displays. The default target is 600×800 RGB565 with
+little-endian, top-to-bottom pixels, but the renderer and conversion code are
+isolated from the normal dashboards so additional display targets can be added
+without device-brand assumptions. The display never runs JavaScript, contacts
+WMATA, or receives the API key. Routes with active arrivals are prioritized when
+the canvas cannot contain every configured row. Warnings are rendered as a black
+text banner, and the footer always shows the last data time and age.
+
+Install the application normally; Pillow is the only additional dependency and
+is installed automatically from `pyproject.toml`/`requirements.txt`. Start the
+LAN server with either systemd (above) or:
+
+```bash
+.venv/bin/waitress-serve --host=0.0.0.0 --port=8080 --call app:create_app
+```
+
+For a server whose LAN address is `192.168.1.50`, the display-frame URLs are:
+
+```text
+PNG preview: http://192.168.1.50:8080/eink/dashboard.png
+Raw frame:   http://192.168.1.50:8080/eink/dashboard.rgb565
+```
+
+Replace the example address with the server's actual LAN IP. These routes use
+ordinary HTTP for Android 2.1 compatibility. Keep them on a trusted local
+network; admin authentication does not protect the display-frame routes.
+
+Generate or refresh the two files manually from the SQLite last-good data:
+
+```bash
+.venv/bin/python -m app.eink --profile home --output-dir instance/eink
+```
+
+The command writes `dashboard.png` and `dashboard.rgb565` through temporary
+files followed by atomic replacement. Requests are serialized, completed frames
+are cached for `WMATA_EINK_REFRESH_SECONDS`, and a rendering or data-state
+failure preserves the last valid pair. The raw response is always a headerless,
+top-to-bottom, 1,200-byte-per-row, little-endian RGB565 frame.
+
+Verify the generated artifacts:
+
+```bash
+.venv/bin/python -c 'from PIL import Image; p="instance/eink/dashboard.png"; im=Image.open(p); print(im.size, im.mode)'
+wc -c instance/eink/dashboard.rgb565
+shasum -a 256 instance/eink/dashboard.png instance/eink/dashboard.rgb565
+```
+
+Expected results are `(600, 800) RGB` and `960000` raw bytes. A display-side
+update can download the raw URL to a temporary name, rename it after a successful
+download, and pass it to the device's framebuffer loader, for example:
+
+```sh
+/path/to/framebuffer-loader load dashboard.rgb565 hidden full
+```
+
 ## Administration and diagnostics
 
 The admin StopID lookup fetches the full cached stop catalog, then the selected
@@ -215,6 +278,8 @@ Useful URLs:
 - `/diagnostics` — requests, cache and vehicle evidence
 - `/health` — lightweight process health JSON
 - `/api/dashboard/<slug>` — local dashboard state consumed by browsers
+- `/eink/dashboard.png` — exact 600×800 e-reader preview
+- `/eink/dashboard.rgb565` — exact 960,000-byte little-endian RGB565 frame
 
 The bottom of `/admin` includes a **Stop dashboard** control. After confirmation,
 it stops the central polling thread, flushes logging, returns a shutdown status
@@ -241,7 +306,9 @@ python -m pytest -q
 Tests use mocked/pure inputs—no WMATA key or Internet access. They cover formatting,
 fresh/stale/scheduled selection, filtering, TripID/vehicle deduplication, passed
 removal, rail coexistence primitives, aware midnight parsing, cache expiration,
-state thresholds, conservative passage inference, and last-bus calculation.
+state thresholds, conservative passage inference, last-bus calculation, e-ink
+dimensions, RGB565 byte packing, warning rendering, atomic fallback, concurrent
+reads, and frame response headers.
 
 ## Troubleshooting
 

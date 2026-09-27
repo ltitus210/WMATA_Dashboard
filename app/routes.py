@@ -156,6 +156,40 @@ def api_dashboard(slug: str):
     return jsonify(dashboard_state(slug))
 
 
+def _eink_frame_bundle():
+    settings = current_app.config["SETTINGS"]
+    service = current_app.extensions["eink_frames"]
+    return service.get_or_generate(lambda: dashboard_state(settings.eink_profile))
+
+
+@bp.get("/eink/dashboard.png")
+def eink_dashboard_png():
+    try:
+        content = _eink_frame_bundle().png
+    except Exception:
+        LOG.exception("Unable to serve an e-ink PNG frame")
+        return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
+    return Response(content, headers={
+        "Content-Type": "image/png",
+        "Content-Length": str(len(content)),
+        "Cache-Control": "no-store",
+    })
+
+
+@bp.get("/eink/dashboard.rgb565")
+def eink_dashboard_rgb565():
+    try:
+        content = _eink_frame_bundle().rgb565
+    except Exception:
+        LOG.exception("Unable to serve an e-ink RGB565 frame")
+        return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
+    return Response(content, headers={
+        "Content-Type": "application/octet-stream",
+        "Content-Length": "960000",
+        "Cache-Control": "no-store",
+    })
+
+
 @bp.get("/health")
 def health():
     return jsonify(status="ok", version=current_app.config["VERSION"], api_key_configured=bool(client().api_key))

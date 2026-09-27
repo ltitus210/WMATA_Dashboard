@@ -26,12 +26,17 @@ class Settings:
     log_file: str = ""
     log_max_bytes: int = 2_000_000
     log_backup_count: int = 3
+    eink_profile: str = "home"
+    eink_frame_dir: str = "instance/eink"
+    eink_refresh_seconds: int = 30
+    eink_font: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
         load_dotenv()
         database = Path(os.getenv("WMATA_DATABASE", "instance/wmata-dashboard.sqlite3"))
         log_file = Path(os.getenv("WMATA_LOG_FILE", "instance/logs/wmata-dashboard.log"))
+        eink_frame_dir = Path(os.getenv("WMATA_EINK_FRAME_DIR", "instance/eink"))
         return cls(
             api_key=os.getenv("WMATA_API_KEY", "").strip(),
             bind=os.getenv("WMATA_BIND", "0.0.0.0"),
@@ -46,4 +51,8 @@ class Settings:
             log_file=str(log_file.resolve()),
             log_max_bytes=max(65536, int(os.getenv("WMATA_LOG_MAX_BYTES", "2000000"))),
             log_backup_count=max(1, int(os.getenv("WMATA_LOG_BACKUP_COUNT", "3"))),
+            eink_profile=os.getenv("WMATA_EINK_PROFILE", "home").strip() or "home",
+            eink_frame_dir=str(eink_frame_dir.resolve()),
+            eink_refresh_seconds=max(5, int(os.getenv("WMATA_EINK_REFRESH_SECONDS", "30"))),
+            eink_font=os.getenv("WMATA_EINK_FONT", "").strip(),
         )

@@ -28,6 +28,8 @@ def shutdown_application(app: Flask) -> None:
 
 
 def create_app(overrides: dict | None = None) -> Flask:
+    from .eink import EInkFrameService
+
     settings = Settings.from_env()
     app = Flask(__name__, instance_relative_config=True)
     app.config.update(
@@ -58,6 +60,9 @@ def create_app(overrides: dict | None = None) -> Flask:
     app.extensions["database"] = db
     stored_api_key = db.get_secret("wmata_api_key")
     app.extensions["wmata"] = WMATAClient(settings.api_key or stored_api_key, db)
+    app.extensions["eink_frames"] = EInkFrameService(
+        settings.eink_frame_dir, settings.eink_refresh_seconds, settings.eink_font
+    )
     app.register_blueprint(bp)
 
     if settings.start_poller and not app.config.get("TESTING"):
