@@ -11,6 +11,7 @@ import time
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, url_for
+from werkzeug.exceptions import HTTPException
 
 from .database import utcnow
 from .predictions.engine import format_elapsed_minutes, format_minutes, merge_bus, merge_rail
@@ -156,18 +157,25 @@ def api_dashboard(slug: str):
     return jsonify(dashboard_state(slug))
 
 
-def _eink_frame_bundle():
-    settings = current_app.config["SETTINGS"]
+def _eink_frame_set(slug: str):
     service = current_app.extensions["eink_frames"]
-    return service.get_or_generate(lambda: dashboard_state(settings.eink_profile))
+    return service.get_or_generate(slug, lambda: dashboard_state(slug))
 
 
-@bp.get("/eink/dashboard.png")
-def eink_dashboard_png():
+def _eink_frame_bundle(slug: str, page: int = 1):
+    frame_set = _eink_frame_set(slug)
+    if page < 1 or page > len(frame_set.pages):
+        abort(404)
+    return frame_set.pages[page - 1]
+
+
+def _eink_png_response(slug: str, page: int = 1):
     try:
-        content = _eink_frame_bundle().png
+        content = _eink_frame_bundle(slug, page).png
+    except HTTPException:
+        raise
     except Exception:
-        LOG.exception("Unable to serve an e-ink PNG frame")
+        LOG.exception("Unable to serve an e-ink PNG frame for profile %s page %s", slug, page)
         return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
     return Response(content, headers={
         "Content-Type": "image/png",
@@ -176,18 +184,83 @@ def eink_dashboard_png():
     })
 
 
-@bp.get("/eink/dashboard.rgb565")
-def eink_dashboard_rgb565():
+def _eink_raw_response(slug: str, page: int = 1):
     try:
-        content = _eink_frame_bundle().rgb565
+        content = _eink_frame_bundle(slug, page).rgb565
+    except HTTPException:
+        raise
     except Exception:
-        LOG.exception("Unable to serve an e-ink RGB565 frame")
+        LOG.exception("Unable to serve an e-ink RGB565 frame for profile %s page %s", slug, page)
         return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
     return Response(content, headers={
         "Content-Type": "application/octet-stream",
-        "Content-Length": "960000",
+        "Content-Length": str(len(content)),
         "Cache-Control": "no-store",
     })
+
+
+@bp.get("/eink/dashboard.png")
+def eink_dashboard_png():
+    return _eink_png_response(current_app.config["SETTINGS"].eink_profile)
+
+
+@bp.get("/eink/dashboard.rgb565")
+def eink_dashboard_rgb565():
+    return _eink_raw_response(current_app.config["SETTINGS"].eink_profile)
+
+
+@bp.get("/eink/<slug>/")
+def eink_profile_index(slug: str):
+    try:
+        frame_set = _eink_frame_set(slug)
+    except HTTPException:
+        raise
+    except Exception:
+        LOG.exception("Unable to build the e-ink page index for profile %s", slug)
+        return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
+    return render_template("eink_index.html", profile=db().profile(slug),
+                           page_count=len(frame_set.pages))
+
+
+@bp.get("/eink/<slug>/manifest.json")
+def eink_profile_manifest(slug: str):
+    try:
+        frame_set = _eink_frame_set(slug)
+    except HTTPException:
+        raise
+    except Exception:
+        LOG.exception("Unable to build the e-ink manifest for profile %s", slug)
+        return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
+    pages = []
+    for page in range(1, len(frame_set.pages) + 1):
+        png_endpoint = "main.eink_profile_png" if page == 1 else "main.eink_profile_numbered_png"
+        raw_endpoint = "main.eink_profile_rgb565" if page == 1 else "main.eink_profile_numbered_rgb565"
+        values = {"slug": slug} if page == 1 else {"slug": slug, "page": page}
+        pages.append({"page": page, "png": url_for(png_endpoint, **values),
+                      "rgb565": url_for(raw_endpoint, **values)})
+    response = jsonify(profile=slug, page_count=len(pages), pages=pages)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.get("/eink/<slug>/dashboard.png")
+def eink_profile_png(slug: str):
+    return _eink_png_response(slug)
+
+
+@bp.get("/eink/<slug>/dashboard.rgb565")
+def eink_profile_rgb565(slug: str):
+    return _eink_raw_response(slug)
+
+
+@bp.get("/eink/<slug>/dashboard-<int:page>.png")
+def eink_profile_numbered_png(slug: str, page: int):
+    return _eink_png_response(slug, page)
+
+
+@bp.get("/eink/<slug>/dashboard-<int:page>.rgb565")
+def eink_profile_numbered_rgb565(slug: str, page: int):
+    return _eink_raw_response(slug, page)
 
 
 @bp.get("/health")

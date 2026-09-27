@@ -5,9 +5,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from hashlib import sha256
 from io import BytesIO
+import json
 import logging
 import os
 from pathlib import Path
+import re
 import tempfile
 import threading
 import time
@@ -27,6 +29,13 @@ RAW_SIZE = WIDTH * HEIGHT * 2
 class EInkFrameBundle:
     png: bytes
     rgb565: bytes
+    generated_monotonic: float
+
+
+@dataclass(frozen=True, slots=True)
+class EInkFrameSet:
+    profile_slug: str
+    pages: tuple[EInkFrameBundle, ...]
     generated_monotonic: float
 
 
@@ -123,7 +132,17 @@ def _state_time(state: dict) -> datetime:
         return datetime.now().astimezone()
 
 
-def render_eink_image(state: dict, font_path: str = "") -> Image.Image:
+def _entry_pages(state: dict) -> list[list[dict]]:
+    cursor_y = 218 if str(state.get("warning") or "").strip() else 128
+    capacity = max(1, (742 - cursor_y) // 100)
+    entries = list(state.get("entries") or [])
+    ranked = [entry for _, entry in sorted(
+        enumerate(entries), key=lambda pair: (not bool(pair[1].get("arrivals")), pair[0])
+    )]
+    return [ranked[index:index + capacity] for index in range(0, len(ranked), capacity)] or [[]]
+
+
+def render_eink_image(state: dict, font_path: str = "", page: int = 1) -> Image.Image:
     """Render deterministic dashboard state to the default 600x800 e-ink canvas."""
     image = Image.new("RGBA", (WIDTH, HEIGHT), (255, 255, 255, 255))
     draw = ImageDraw.Draw(image)
@@ -158,10 +177,10 @@ def render_eink_image(state: dict, font_path: str = "") -> Image.Image:
 
     footer_top = 742
     row_height = 100
-    capacity = max(1, (footer_top - cursor_y) // row_height)
-    entries = list(state.get("entries") or [])
-    ranked = sorted(enumerate(entries), key=lambda pair: (not bool(pair[1].get("arrivals")), pair[0]))
-    selected = [entry for _, entry in ranked[:capacity]]
+    pages = _entry_pages(state)
+    if page < 1 or page > len(pages):
+        raise ValueError(f"E-ink page {page} is outside 1..{len(pages)}")
+    selected = pages[page - 1]
 
     if not selected:
         draw.text((WIDTH // 2, 330), "NO ARRIVALS", font=bold[38], fill=black, anchor="ma")
@@ -192,8 +211,7 @@ def render_eink_image(state: dict, font_path: str = "") -> Image.Image:
         draw.rectangle((margin, cursor_y + 91, WIDTH - margin, cursor_y + 93), fill=black)
         cursor_y += row_height
 
-    hidden = max(0, len(entries) - len(selected))
-    footer_note = f"+{hidden} ROUTE{'S' if hidden != 1 else ''} NOT SHOWN" if hidden else "TOP-TO-BOTTOM • 600 × 800"
+    footer_note = f"PAGE {page} OF {len(pages)}"
     draw.rectangle((0, footer_top, WIDTH, HEIGHT), fill=black)
     draw.text((margin, footer_top + 11), f"LAST UPDATED {data_time.strftime('%-I:%M %p')}",
               font=bold[18], fill=white)
@@ -202,8 +220,8 @@ def render_eink_image(state: dict, font_path: str = "") -> Image.Image:
     return composite_on_white(image)
 
 
-def render_eink_bundle(state: dict, font_path: str = "") -> EInkFrameBundle:
-    image = render_eink_image(state, font_path)
+def render_eink_bundle(state: dict, font_path: str = "", page: int = 1) -> EInkFrameBundle:
+    image = render_eink_image(state, font_path, page)
     buffer = BytesIO()
     image.save(buffer, format="PNG", optimize=True)
     png = buffer.getvalue()
@@ -211,6 +229,12 @@ def render_eink_bundle(state: dict, font_path: str = "") -> EInkFrameBundle:
     if len(raw) != RAW_SIZE:
         raise ValueError(f"Invalid RGB565 frame size: {len(raw)}")
     return EInkFrameBundle(png, raw, time.monotonic())
+
+
+def render_eink_frame_set(state: dict, profile_slug: str, font_path: str = "") -> EInkFrameSet:
+    page_count = len(_entry_pages(state))
+    pages = tuple(render_eink_bundle(state, font_path, page) for page in range(1, page_count + 1))
+    return EInkFrameSet(profile_slug, pages, time.monotonic())
 
 
 def _atomic_write(path: Path, content: bytes) -> None:
@@ -229,52 +253,97 @@ def _atomic_write(path: Path, content: bytes) -> None:
 
 
 class EInkFrameService:
-    """Thread-safe, atomic, last-good cache for PNG and RGB565 frames."""
+    """Thread-safe, atomic, last-good cache for per-profile frame sets."""
 
     def __init__(self, output_dir: str, refresh_seconds: int = 30, font_path: str = ""):
         self.output_dir = Path(output_dir)
         self.refresh_seconds = max(0, int(refresh_seconds))
         self.font_path = font_path
-        self.png_path = self.output_dir / "dashboard.png"
-        self.raw_path = self.output_dir / "dashboard.rgb565"
         self._lock = threading.RLock()
-        self._bundle: EInkFrameBundle | None = None
+        self._frame_sets: dict[str, EInkFrameSet] = {}
 
-    def _load_last_good(self) -> EInkFrameBundle | None:
+    @staticmethod
+    def _safe_slug(profile_slug: str) -> str:
+        slug = re.sub(r"[^a-z0-9_-]+", "-", profile_slug.lower()).strip("-")
+        if not slug:
+            raise ValueError("Invalid e-ink profile slug")
+        return slug
+
+    def profile_dir(self, profile_slug: str) -> Path:
+        return self.output_dir / self._safe_slug(profile_slug)
+
+    def png_path(self, profile_slug: str, page: int = 1) -> Path:
+        suffix = "" if page == 1 else f"-{page}"
+        return self.profile_dir(profile_slug) / f"dashboard{suffix}.png"
+
+    def raw_path(self, profile_slug: str, page: int = 1) -> Path:
+        suffix = "" if page == 1 else f"-{page}"
+        return self.profile_dir(profile_slug) / f"dashboard{suffix}.rgb565"
+
+    def manifest_path(self, profile_slug: str) -> Path:
+        return self.profile_dir(profile_slug) / "manifest.json"
+
+    def _load_last_good(self, profile_slug: str) -> EInkFrameSet | None:
         try:
-            png = self.png_path.read_bytes()
-            raw = self.raw_path.read_bytes()
-            if len(raw) != RAW_SIZE:
+            manifest = json.loads(self.manifest_path(profile_slug).read_text(encoding="utf-8"))
+            page_count = int(manifest["page_count"])
+            if page_count < 1:
                 return None
-            with Image.open(BytesIO(png)) as image:
-                if image.size != (WIDTH, HEIGHT):
+            pages = []
+            for page in range(1, page_count + 1):
+                png = self.png_path(profile_slug, page).read_bytes()
+                raw = self.raw_path(profile_slug, page).read_bytes()
+                if len(raw) != RAW_SIZE:
                     return None
-                image.verify()
-            return EInkFrameBundle(png, raw, time.monotonic())
-        except (OSError, ValueError):
+                with Image.open(BytesIO(png)) as image:
+                    if image.size != (WIDTH, HEIGHT):
+                        return None
+                    image.verify()
+                pages.append(EInkFrameBundle(png, raw, time.monotonic()))
+            return EInkFrameSet(profile_slug, tuple(pages), time.monotonic())
+        except (KeyError, json.JSONDecodeError, OSError, TypeError, ValueError):
             return None
 
-    def get_or_generate(self, state_factory: Callable[[], dict], force: bool = False) -> EInkFrameBundle:
-        bundle = self._bundle
-        if bundle and not force and time.monotonic() - bundle.generated_monotonic < self.refresh_seconds:
-            return bundle
+    def _publish(self, frame_set: EInkFrameSet) -> None:
+        slug = frame_set.profile_slug
+        for page, bundle in enumerate(frame_set.pages, 1):
+            _atomic_write(self.raw_path(slug, page), bundle.rgb565)
+            _atomic_write(self.png_path(slug, page), bundle.png)
+        manifest = {
+            "profile": slug,
+            "page_count": len(frame_set.pages),
+            "pages": [
+                {"page": page, "png": self.png_path(slug, page).name,
+                 "rgb565": self.raw_path(slug, page).name}
+                for page in range(1, len(frame_set.pages) + 1)
+            ],
+        }
+        _atomic_write(self.manifest_path(slug), json.dumps(manifest, indent=2).encode("utf-8"))
+
+    def get_or_generate(self, profile_slug: str, state_factory: Callable[[], dict],
+                        force: bool = False) -> EInkFrameSet:
+        profile_slug = self._safe_slug(profile_slug)
+        frame_set = self._frame_sets.get(profile_slug)
+        if frame_set and not force and time.monotonic() - frame_set.generated_monotonic < self.refresh_seconds:
+            return frame_set
         with self._lock:
-            bundle = self._bundle
-            if bundle and not force and time.monotonic() - bundle.generated_monotonic < self.refresh_seconds:
-                return bundle
-            if bundle is None:
-                bundle = self._load_last_good()
-                self._bundle = bundle
+            frame_set = self._frame_sets.get(profile_slug)
+            if frame_set and not force and time.monotonic() - frame_set.generated_monotonic < self.refresh_seconds:
+                return frame_set
+            if frame_set is None:
+                frame_set = self._load_last_good(profile_slug)
+                if frame_set:
+                    self._frame_sets[profile_slug] = frame_set
             try:
-                candidate = render_eink_bundle(state_factory(), self.font_path)
-                _atomic_write(self.raw_path, candidate.rgb565)
-                _atomic_write(self.png_path, candidate.png)
-                self._bundle = candidate
+                candidate = render_eink_frame_set(state_factory(), profile_slug, self.font_path)
+                self._publish(candidate)
+                self._frame_sets[profile_slug] = candidate
                 return candidate
             except Exception:
-                LOG.exception("E-ink frame generation failed; preserving last valid frame")
-                if bundle is not None:
-                    return bundle
+                LOG.exception("E-ink frame generation failed for profile %s; preserving last valid set",
+                              profile_slug)
+                if frame_set is not None:
+                    return frame_set
                 raise
 
 
@@ -292,9 +361,12 @@ def main() -> int:
     profile = args.profile or settings.eink_profile
     service = EInkFrameService(args.output_dir or settings.eink_frame_dir, 0, settings.eink_font)
     with app.app_context():
-        bundle = service.get_or_generate(lambda: dashboard_state(profile), force=True)
-    print(f"PNG {service.png_path} {len(bundle.png)} bytes sha256={sha256(bundle.png).hexdigest()}")
-    print(f"RGB565 {service.raw_path} {len(bundle.rgb565)} bytes sha256={sha256(bundle.rgb565).hexdigest()}")
+        frame_set = service.get_or_generate(profile, lambda: dashboard_state(profile), force=True)
+    for page, bundle in enumerate(frame_set.pages, 1):
+        png_path = service.png_path(profile, page)
+        raw_path = service.raw_path(profile, page)
+        print(f"PNG page={page} {png_path} {len(bundle.png)} bytes sha256={sha256(bundle.png).hexdigest()}")
+        print(f"RGB565 page={page} {raw_path} {len(bundle.rgb565)} bytes sha256={sha256(bundle.rgb565).hexdigest()}")
     return 0
 
 

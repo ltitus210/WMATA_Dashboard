@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ profile.name }} e-ink frames</title>
+  <style>
+    body{margin:0;background:#f4f4f4;color:#111;font:17px system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:28px}
+    h1{margin:.2em 0}.meta{color:#555}.pages{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:24px;margin-top:24px}
+    article{background:#fff;border:2px solid #111;border-radius:12px;padding:16px}img{display:block;width:100%;height:auto;border:1px solid #777}
+    .links{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}a{color:#0645ad}a.button{background:#111;color:#fff;padding:10px 14px;border-radius:7px;text-decoration:none;font-weight:700}
+  </style>
+</head>
+<body><main>
+  <p><a href="{{ url_for('main.admin') }}">← Configuration</a></p>
+  <h1>{{ profile.name }} e-ink frames</h1>
+  <p class="meta">{{ page_count }} page{{ '' if page_count == 1 else 's' }} · 600×800 pixels · RGB565 little-endian</p>
+  <p><a href="{{ url_for('main.eink_profile_manifest', slug=profile.slug) }}">Machine-readable page manifest</a></p>
+  <div class="pages">
+  {% for page in range(1, page_count + 1) %}
+    {% set png_url = url_for('main.eink_profile_png', slug=profile.slug) if page == 1 else url_for('main.eink_profile_numbered_png', slug=profile.slug, page=page) %}
+    {% set raw_url = url_for('main.eink_profile_rgb565', slug=profile.slug) if page == 1 else url_for('main.eink_profile_numbered_rgb565', slug=profile.slug, page=page) %}
+    <article><h2>Page {{ page }} of {{ page_count }}</h2><img src="{{ png_url }}" width="600" height="800" alt="Preview of page {{ page }}">
+      <div class="links"><a class="button" href="{{ png_url }}">Open PNG</a><a class="button" href="{{ raw_url }}">Download RGB565</a></div>
+    </article>
+  {% endfor %}
+  </div>
+</main></body></html>

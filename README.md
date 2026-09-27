@@ -209,9 +209,11 @@ e-readers and e-ink displays. The default target is 600×800 RGB565 with
 little-endian, top-to-bottom pixels, but the renderer and conversion code are
 isolated from the normal dashboards so additional display targets can be added
 without device-brand assumptions. The display never runs JavaScript, contacts
-WMATA, or receives the API key. Routes with active arrivals are prioritized when
-the canvas cannot contain every configured row. Warnings are rendered as a black
-text banner, and the footer always shows the last data time and age.
+WMATA, or receives the API key. Every configured profile has its own frame URLs.
+When its routes do not fit in one frame, the server creates additional numbered
+pages; routes with active arrivals are placed first. Warnings are rendered as a
+black text banner, and every page footer shows the last data time, age, and page
+number.
 
 Install the application normally; Pillow is the only additional dependency and
 is installed automatically from `pyproject.toml`/`requirements.txt`. Start the
@@ -221,16 +223,26 @@ LAN server with either systemd (above) or:
 .venv/bin/waitress-serve --host=0.0.0.0 --port=8080 --call app:create_app
 ```
 
-For a server whose LAN address is `192.168.1.50`, the display-frame URLs are:
+For the `home` profile on a server whose LAN address is `192.168.1.50`, the
+display-frame URLs are:
 
 ```text
-PNG preview: http://192.168.1.50:8080/eink/dashboard.png
-Raw frame:   http://192.168.1.50:8080/eink/dashboard.rgb565
+Page gallery:  http://192.168.1.50:8080/eink/home/
+Page manifest: http://192.168.1.50:8080/eink/home/manifest.json
+PNG page 1:    http://192.168.1.50:8080/eink/home/dashboard.png
+Raw page 1:    http://192.168.1.50:8080/eink/home/dashboard.rgb565
+PNG page 2:    http://192.168.1.50:8080/eink/home/dashboard-2.png
+Raw page 2:    http://192.168.1.50:8080/eink/home/dashboard-2.rgb565
 ```
 
-Replace the example address with the server's actual LAN IP. These routes use
-ordinary HTTP for Android 2.1 compatibility. Keep them on a trusted local
-network; admin authentication does not protect the display-frame routes.
+Replace `home` with any configured profile slug and replace the example address
+with the server's actual LAN IP. The manifest lists the current number of pages
+and the PNG/RGB565 URL for each one, which lets a display discover overflow pages
+without guessing. The unscoped `/eink/dashboard.png` and
+`/eink/dashboard.rgb565` aliases continue to serve page 1 of the profile selected
+by `WMATA_EINK_PROFILE`. These routes use ordinary HTTP for older clients. Keep
+them on a trusted local network; admin authentication does not protect the
+display-frame routes.
 
 Generate or refresh the two files manually from the SQLite last-good data:
 
@@ -238,18 +250,20 @@ Generate or refresh the two files manually from the SQLite last-good data:
 .venv/bin/python -m app.eink --profile home --output-dir instance/eink
 ```
 
-The command writes `dashboard.png` and `dashboard.rgb565` through temporary
-files followed by atomic replacement. Requests are serialized, completed frames
-are cached for `WMATA_EINK_REFRESH_SECONDS`, and a rendering or data-state
-failure preserves the last valid pair. The raw response is always a headerless,
-top-to-bottom, 1,200-byte-per-row, little-endian RGB565 frame.
+The command writes the complete page set under `instance/eink/home/`, using
+`dashboard.png` and `dashboard.rgb565` for page 1 and numbered filenames for
+later pages. Each file is written through a temporary file followed by atomic
+replacement, and the manifest is published last. Requests are serialized,
+completed page sets are cached for `WMATA_EINK_REFRESH_SECONDS`, and a rendering
+or data-state failure preserves the last valid set. Every raw response is a
+headerless, top-to-bottom, 1,200-byte-per-row, little-endian RGB565 frame.
 
 Verify the generated artifacts:
 
 ```bash
-.venv/bin/python -c 'from PIL import Image; p="instance/eink/dashboard.png"; im=Image.open(p); print(im.size, im.mode)'
-wc -c instance/eink/dashboard.rgb565
-shasum -a 256 instance/eink/dashboard.png instance/eink/dashboard.rgb565
+.venv/bin/python -c 'from PIL import Image; p="instance/eink/home/dashboard.png"; im=Image.open(p); print(im.size, im.mode)'
+wc -c instance/eink/home/dashboard.rgb565
+shasum -a 256 instance/eink/home/dashboard.png instance/eink/home/dashboard.rgb565
 ```
 
 Expected results are `(600, 800) RGB` and `960000` raw bytes. A display-side
@@ -278,8 +292,11 @@ Useful URLs:
 - `/diagnostics` — requests, cache and vehicle evidence
 - `/health` — lightweight process health JSON
 - `/api/dashboard/<slug>` — local dashboard state consumed by browsers
-- `/eink/dashboard.png` — exact 600×800 e-reader preview
-- `/eink/dashboard.rgb565` — exact 960,000-byte little-endian RGB565 frame
+- `/eink/<slug>/` — gallery of all e-ink pages for one profile
+- `/eink/<slug>/manifest.json` — machine-readable list of that profile's pages
+- `/eink/<slug>/dashboard.png` — exact 600×800 page 1 preview
+- `/eink/<slug>/dashboard.rgb565` — exact 960,000-byte page 1 RGB565 frame
+- `/eink/<slug>/dashboard-2.png` and `.rgb565` — additional pages as needed
 
 The bottom of `/admin` includes a **Stop dashboard** control. After confirmation,
 it stops the central polling thread, flushes logging, returns a shutdown status

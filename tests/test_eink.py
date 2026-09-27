@@ -1,3 +1,4 @@
+import json
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
@@ -7,7 +8,8 @@ from PIL import Image
 from app import create_app
 from app.config import Settings
 from app.eink import (HEIGHT, RAW_SIZE, WIDTH, EInkFrameService, composite_on_white,
-                      image_to_rgb565_le, render_eink_bundle, render_eink_image)
+                      image_to_rgb565_le, render_eink_bundle, render_eink_frame_set,
+                      render_eink_image)
 
 
 def fixture_state(warning: str | None = None) -> dict:
@@ -76,23 +78,52 @@ def test_warning_and_stale_state_still_render_valid_frame():
 
 def test_atomic_service_preserves_last_good_frame_and_concurrent_reads(tmp_path):
     service = EInkFrameService(str(tmp_path / "eink"), refresh_seconds=0)
-    first = service.get_or_generate(fixture_state, force=True)
-    assert service.png_path.read_bytes() == first.png
-    assert service.raw_path.read_bytes() == first.rgb565
+    first_set = service.get_or_generate("home", fixture_state, force=True)
+    first = first_set.pages[0]
+    assert service.png_path("home").read_bytes() == first.png
+    assert service.raw_path("home").read_bytes() == first.rgb565
 
     def fail():
         raise RuntimeError("fixture render failure")
 
-    fallback = service.get_or_generate(fail, force=True)
+    fallback = service.get_or_generate("home", fail, force=True).pages[0]
     assert fallback.png == first.png
     assert fallback.rgb565 == first.rgb565
-    assert service.png_path.read_bytes() == first.png
-    assert service.raw_path.read_bytes() == first.rgb565
+    assert service.png_path("home").read_bytes() == first.png
+    assert service.raw_path("home").read_bytes() == first.rgb565
 
     cached = EInkFrameService(str(tmp_path / "eink"), refresh_seconds=3600)
     with ThreadPoolExecutor(max_workers=8) as pool:
-        sizes = list(pool.map(lambda _: len(cached.get_or_generate(fixture_state).rgb565), range(16)))
+        sizes = list(pool.map(
+            lambda _: len(cached.get_or_generate("home", fixture_state).pages[0].rgb565), range(16)
+        ))
     assert sizes == [RAW_SIZE] * 16
+
+
+def test_frame_set_paginates_every_configured_route(tmp_path):
+    state = fixture_state()
+    state["entries"] = [
+        {
+            "mode": "bus", "location_name": f"Stop {index}", "route": f"R{index}",
+            "destination": f"Destination {index}", "last": None,
+            "arrivals": [{"display": f"{index + 1}m", "destination": f"Destination {index}"}],
+        }
+        for index in range(13)
+    ]
+    frame_set = render_eink_frame_set(state, "home")
+    assert len(frame_set.pages) == 3
+    assert all(len(bundle.rgb565) == RAW_SIZE for bundle in frame_set.pages)
+    assert len({bundle.png for bundle in frame_set.pages}) == 3
+
+    service = EInkFrameService(str(tmp_path / "eink"), refresh_seconds=0)
+    published = service.get_or_generate("home", lambda: state, force=True)
+    manifest = json.loads(service.manifest_path("home").read_text())
+    assert manifest["page_count"] == 3
+    assert [page["png"] for page in manifest["pages"]] == [
+        "dashboard.png", "dashboard-2.png", "dashboard-3.png"
+    ]
+    assert service.png_path("home", 3).read_bytes() == published.pages[2].png
+    assert service.raw_path("home", 3).stat().st_size == RAW_SIZE
 
 
 def settings(database_path: Path, frame_dir: Path) -> Settings:
@@ -107,6 +138,17 @@ def test_eink_endpoints_use_cached_server_state_and_required_headers(tmp_path):
     })
     browser = app.test_client()
 
+    database = app.extensions["database"]
+    profile = database.profile("home")
+    now = "2026-09-26T08:30:00+00:00"
+    for index in range(8):
+        database.execute(
+            """INSERT INTO entries(profile_id,position,mode,location_id,location_name,route,
+               direction,destination,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            (profile["id"], index, "bus", f"100{index:04d}", f"Stop {index}", f"R{index}",
+             "0", f"Destination {index}", now, now),
+        )
+
     preview = browser.get("/eink/dashboard.png")
     assert preview.status_code == 200
     assert preview.content_type == "image/png"
@@ -120,3 +162,42 @@ def test_eink_endpoints_use_cached_server_state_and_required_headers(tmp_path):
     assert raw.headers["Content-Length"] == "960000"
     assert raw.headers["Cache-Control"] == "no-store"
     assert len(raw.data) == RAW_SIZE
+
+    index = browser.get("/eink/home/")
+    assert index.status_code == 200
+    assert b"Page 2 of 2" in index.data
+    manifest = browser.get("/eink/home/manifest.json")
+    assert manifest.status_code == 200
+    assert manifest.headers["Cache-Control"] == "no-store"
+    assert manifest.json == {
+        "profile": "home", "page_count": 2,
+        "pages": [
+            {"page": 1, "png": "/eink/home/dashboard.png",
+             "rgb565": "/eink/home/dashboard.rgb565"},
+            {"page": 2, "png": "/eink/home/dashboard-2.png",
+             "rgb565": "/eink/home/dashboard-2.rgb565"},
+        ],
+    }
+    assert browser.get("/eink/home/dashboard-2.png").status_code == 200
+    raw_page_two = browser.get("/eink/home/dashboard-2.rgb565")
+    assert raw_page_two.status_code == 200
+    assert len(raw_page_two.data) == RAW_SIZE
+    assert browser.get("/eink/home/dashboard-3.png").status_code == 404
+    assert browser.get("/eink/missing/dashboard.png").status_code == 404
+
+    database.execute(
+        "INSERT INTO profiles(slug,name,created_at,updated_at) VALUES(?,?,?,?)",
+        ("office", "Office", now, now),
+    )
+    office_manifest = browser.get("/eink/office/manifest.json")
+    assert office_manifest.status_code == 200
+    assert office_manifest.json["profile"] == "office"
+    assert office_manifest.json["page_count"] == 1
+
+    admin = browser.get("/admin")
+    assert b'/eink/home/' in admin.data
+    assert b'/eink/home/dashboard.png' in admin.data
+    assert b'/eink/home/dashboard.rgb565' in admin.data
+    assert b'/eink/office/' in admin.data
+    assert b'/eink/office/dashboard.png' in admin.data
+    assert b'/eink/office/dashboard.rgb565' in admin.data
