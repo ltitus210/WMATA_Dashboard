@@ -7,9 +7,9 @@ from PIL import Image
 
 from app import create_app
 from app.config import Settings
-from app.eink import (HEIGHT, RAW_SIZE, WIDTH, EInkFrameService, composite_on_white,
-                      image_to_rgb565_le, render_eink_bundle, render_eink_frame_set,
-                      render_eink_image)
+from app.eink import (HEIGHT, KINDLE_PW2_TARGET, RAW_SIZE, WIDTH, EInkFrameService,
+                      composite_on_white, image_to_rgb565_le, render_eink_bundle,
+                      render_eink_frame_set, render_eink_image)
 
 
 def fixture_state(warning: str | None = None) -> dict:
@@ -48,6 +48,17 @@ def test_eink_preview_and_raw_dimensions_are_exact():
         assert preview.mode == "RGB"
     assert len(bundle.rgb565) == 960_000 == RAW_SIZE
     assert bundle.png == render_eink_bundle(fixture_state()).png
+
+
+def test_kindle_pw2_target_has_native_dimensions_and_raw_size():
+    image = render_eink_image(fixture_state(), target=KINDLE_PW2_TARGET)
+    bundle = render_eink_bundle(fixture_state(), target=KINDLE_PW2_TARGET)
+
+    assert image.size == (758, 1024)
+    with Image.open(BytesIO(bundle.png)) as preview:
+        assert preview.size == (758, 1024)
+        assert preview.mode == "RGB"
+    assert len(bundle.rgb565) == 758 * 1024 * 2 == 1_552_384
 
 
 def test_rgb565_is_little_endian_for_known_colors():
@@ -170,7 +181,8 @@ def test_eink_endpoints_use_cached_server_state_and_required_headers(tmp_path):
     assert manifest.status_code == 200
     assert manifest.headers["Cache-Control"] == "no-store"
     assert manifest.json == {
-        "profile": "home", "page_count": 2,
+        "profile": "home", "target": "nook", "width": 600, "height": 800,
+        "raw_size": 960_000, "page_count": 2,
         "pages": [
             {"page": 1, "png": "/eink/home/dashboard.png",
              "rgb565": "/eink/home/dashboard.rgb565"},
@@ -179,11 +191,29 @@ def test_eink_endpoints_use_cached_server_state_and_required_headers(tmp_path):
         ],
     }
     assert browser.get("/eink/home/dashboard-2.png").status_code == 200
+    explicit_nook = browser.get("/eink/home/nook/dashboard.png")
+    with Image.open(BytesIO(explicit_nook.data)) as image:
+        assert image.size == (600, 800)
     raw_page_two = browser.get("/eink/home/dashboard-2.rgb565")
     assert raw_page_two.status_code == 200
     assert len(raw_page_two.data) == RAW_SIZE
     assert browser.get("/eink/home/dashboard-3.png").status_code == 404
     assert browser.get("/eink/missing/dashboard.png").status_code == 404
+
+    pw2_manifest = browser.get("/eink/home/kindle-pw2/manifest.json")
+    assert pw2_manifest.status_code == 200
+    assert pw2_manifest.json["target"] == "kindle-pw2"
+    assert pw2_manifest.json["width"] == 758
+    assert pw2_manifest.json["height"] == 1024
+    assert pw2_manifest.json["raw_size"] == 1_552_384
+    assert pw2_manifest.json["pages"][0]["png"] == "/eink/home/kindle-pw2/dashboard.png"
+    pw2_preview = browser.get("/eink/home/kindle-pw2/dashboard.png")
+    with Image.open(BytesIO(pw2_preview.data)) as image:
+        assert image.size == (758, 1024)
+    pw2_raw = browser.get("/eink/home/kindle-pw2/dashboard.rgb565")
+    assert pw2_raw.headers["Content-Length"] == "1552384"
+    assert len(pw2_raw.data) == 1_552_384
+    assert browser.get("/eink/home/unknown/dashboard.png").status_code == 404
 
     database.execute(
         "INSERT INTO profiles(slug,name,created_at,updated_at) VALUES(?,?,?,?)",
@@ -198,6 +228,7 @@ def test_eink_endpoints_use_cached_server_state_and_required_headers(tmp_path):
     assert b'/eink/home/' in admin.data
     assert b'/eink/home/dashboard.png' in admin.data
     assert b'/eink/home/dashboard.rgb565' in admin.data
+    assert b'/eink/home/kindle-pw2/dashboard.png' in admin.data
     assert b'/eink/office/' in admin.data
     assert b'/eink/office/dashboard.png' in admin.data
     assert b'/eink/office/dashboard.rgb565' in admin.data

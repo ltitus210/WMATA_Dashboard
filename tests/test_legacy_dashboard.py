@@ -27,7 +27,7 @@ def test_admin_links_to_legacy_dashboard(tmp_path):
     response = app.test_client().get("/admin")
     assert b"Legacy Browser" in response.data
     assert b"/dashboard/home/legacy" in response.data
-    assert response.data.count(b'target="_blank" rel="noopener"') == 5
+    assert response.data.count(b'target="_blank" rel="noopener"') == 6
 
 
 def test_legacy_dashboard_respects_row_and_stop_card_layouts(tmp_path):

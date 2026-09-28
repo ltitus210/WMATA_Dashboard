@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{{ profile.name }} e-ink frames</title>
+  <title>{{ profile.name }} · {{ target.label }} frames</title>
   <style>
     body{margin:0;background:#f4f4f4;color:#111;font:17px system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:28px}
     h1{margin:.2em 0}.meta{color:#555}.pages{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:24px;margin-top:24px}
@@ -13,15 +13,14 @@
 </head>
 <body><main>
   <p><a href="{{ url_for('main.admin') }}">← Configuration</a></p>
-  <h1>{{ profile.name }} e-ink frames</h1>
-  <p class="meta">{{ page_count }} page{{ '' if page_count == 1 else 's' }} · 600×800 pixels · RGB565 little-endian</p>
-  <p><a href="{{ url_for('main.eink_profile_manifest', slug=profile.slug) }}">Machine-readable page manifest</a></p>
+  <h1>{{ profile.name }} · {{ target.label }}</h1>
+  <p class="meta">{{ pages|length }} page{{ '' if pages|length == 1 else 's' }} · {{ target.width }}×{{ target.height }} pixels · RGB565 little-endian</p>
+  <p>{% for item in target_links %}<a class="button" href="{{ item.url }}">{{ item.label }}</a>{% if not loop.last %} {% endif %}{% endfor %}</p>
+  <p><a href="{{ manifest_url }}">Machine-readable page manifest</a></p>
   <div class="pages">
-  {% for page in range(1, page_count + 1) %}
-    {% set png_url = url_for('main.eink_profile_png', slug=profile.slug) if page == 1 else url_for('main.eink_profile_numbered_png', slug=profile.slug, page=page) %}
-    {% set raw_url = url_for('main.eink_profile_rgb565', slug=profile.slug) if page == 1 else url_for('main.eink_profile_numbered_rgb565', slug=profile.slug, page=page) %}
-    <article><h2>Page {{ page }} of {{ page_count }}</h2><img src="{{ png_url }}" width="600" height="800" alt="Preview of page {{ page }}">
-      <div class="links"><a class="button" href="{{ png_url }}">Open PNG</a><a class="button" href="{{ raw_url }}">Download RGB565</a></div>
+  {% for page in pages %}
+    <article><h2>Page {{ page.page }} of {{ pages|length }}</h2><img src="{{ page.png }}" width="{{ target.width }}" height="{{ target.height }}" alt="Preview of page {{ page.page }}">
+      <div class="links"><a class="button" href="{{ page.png }}">Open PNG</a><a class="button" href="{{ page.rgb565 }}">Download RGB565</a></div>
     </article>
   {% endfor %}
   </div>

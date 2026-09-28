@@ -21,6 +21,7 @@ from .wmata.client import WMATAError
 bp = Blueprint("main", __name__)
 EASTERN = ZoneInfo("America/New_York")
 LOG = logging.getLogger(__name__)
+DEFAULT_EINK_TARGET = "nook"
 
 
 def db():
@@ -157,25 +158,36 @@ def api_dashboard(slug: str):
     return jsonify(dashboard_state(slug))
 
 
-def _eink_frame_set(slug: str):
+def _eink_target_or_404(target_key: str):
+    from .eink import eink_target
+
+    try:
+        return eink_target(target_key)
+    except ValueError:
+        abort(404)
+
+
+def _eink_frame_set(slug: str, target_key: str = DEFAULT_EINK_TARGET):
     service = current_app.extensions["eink_frames"]
-    return service.get_or_generate(slug, lambda: dashboard_state(slug))
+    target = _eink_target_or_404(target_key)
+    return service.get_or_generate(slug, lambda: dashboard_state(slug), target=target)
 
 
-def _eink_frame_bundle(slug: str, page: int = 1):
-    frame_set = _eink_frame_set(slug)
+def _eink_frame_bundle(slug: str, page: int = 1, target_key: str = DEFAULT_EINK_TARGET):
+    frame_set = _eink_frame_set(slug, target_key)
     if page < 1 or page > len(frame_set.pages):
         abort(404)
     return frame_set.pages[page - 1]
 
 
-def _eink_png_response(slug: str, page: int = 1):
+def _eink_png_response(slug: str, page: int = 1, target_key: str = DEFAULT_EINK_TARGET):
     try:
-        content = _eink_frame_bundle(slug, page).png
+        content = _eink_frame_bundle(slug, page, target_key).png
     except HTTPException:
         raise
     except Exception:
-        LOG.exception("Unable to serve an e-ink PNG frame for profile %s page %s", slug, page)
+        LOG.exception("Unable to serve an e-ink PNG frame for profile %s target %s page %s",
+                      slug, target_key, page)
         return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
     return Response(content, headers={
         "Content-Type": "image/png",
@@ -184,13 +196,14 @@ def _eink_png_response(slug: str, page: int = 1):
     })
 
 
-def _eink_raw_response(slug: str, page: int = 1):
+def _eink_raw_response(slug: str, page: int = 1, target_key: str = DEFAULT_EINK_TARGET):
     try:
-        content = _eink_frame_bundle(slug, page).rgb565
+        content = _eink_frame_bundle(slug, page, target_key).rgb565
     except HTTPException:
         raise
     except Exception:
-        LOG.exception("Unable to serve an e-ink RGB565 frame for profile %s page %s", slug, page)
+        LOG.exception("Unable to serve an e-ink RGB565 frame for profile %s target %s page %s",
+                      slug, target_key, page)
         return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
     return Response(content, headers={
         "Content-Type": "application/octet-stream",
@@ -211,34 +224,68 @@ def eink_dashboard_rgb565():
 
 @bp.get("/eink/<slug>/")
 def eink_profile_index(slug: str):
+    return _eink_index_response(slug, DEFAULT_EINK_TARGET, legacy_urls=True)
+
+
+def _eink_page_urls(slug: str, target_key: str, page_count: int, legacy_urls: bool = False):
+    pages = []
+    for page in range(1, page_count + 1):
+        if legacy_urls:
+            png_endpoint = "main.eink_profile_png" if page == 1 else "main.eink_profile_numbered_png"
+            raw_endpoint = "main.eink_profile_rgb565" if page == 1 else "main.eink_profile_numbered_rgb565"
+            values = {"slug": slug} if page == 1 else {"slug": slug, "page": page}
+        else:
+            png_endpoint = "main.eink_target_png" if page == 1 else "main.eink_target_numbered_png"
+            raw_endpoint = "main.eink_target_rgb565" if page == 1 else "main.eink_target_numbered_rgb565"
+            values = {"slug": slug, "target_key": target_key}
+            if page != 1:
+                values["page"] = page
+        pages.append({"page": page, "png": url_for(png_endpoint, **values),
+                      "rgb565": url_for(raw_endpoint, **values)})
+    return pages
+
+
+def _eink_index_response(slug: str, target_key: str, legacy_urls: bool = False):
+    from .eink import EINK_TARGETS
+
+    target = _eink_target_or_404(target_key)
     try:
-        frame_set = _eink_frame_set(slug)
+        frame_set = _eink_frame_set(slug, target.key)
     except HTTPException:
         raise
     except Exception:
-        LOG.exception("Unable to build the e-ink page index for profile %s", slug)
+        LOG.exception("Unable to build the e-ink page index for profile %s target %s", slug, target.key)
         return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
-    return render_template("eink_index.html", profile=db().profile(slug),
-                           page_count=len(frame_set.pages))
+    pages = _eink_page_urls(slug, target.key, len(frame_set.pages), legacy_urls)
+    manifest_url = (url_for("main.eink_profile_manifest", slug=slug) if legacy_urls else
+                    url_for("main.eink_target_manifest", slug=slug, target_key=target.key))
+    target_links = [
+        {"label": item.label,
+         "url": (url_for("main.eink_profile_index", slug=slug) if item.key == DEFAULT_EINK_TARGET else
+                 url_for("main.eink_target_index", slug=slug, target_key=item.key))}
+        for item in EINK_TARGETS.values()
+    ]
+    return render_template("eink_index.html", profile=db().profile(slug), target=target,
+                           pages=pages, manifest_url=manifest_url, target_links=target_links)
 
 
 @bp.get("/eink/<slug>/manifest.json")
 def eink_profile_manifest(slug: str):
+    return _eink_manifest_response(slug, DEFAULT_EINK_TARGET, legacy_urls=True)
+
+
+def _eink_manifest_response(slug: str, target_key: str, legacy_urls: bool = False):
+    target = _eink_target_or_404(target_key)
     try:
-        frame_set = _eink_frame_set(slug)
+        frame_set = _eink_frame_set(slug, target.key)
     except HTTPException:
         raise
     except Exception:
-        LOG.exception("Unable to build the e-ink manifest for profile %s", slug)
+        LOG.exception("Unable to build the e-ink manifest for profile %s target %s", slug, target.key)
         return Response("E-ink frame unavailable\n", status=503, content_type="text/plain")
-    pages = []
-    for page in range(1, len(frame_set.pages) + 1):
-        png_endpoint = "main.eink_profile_png" if page == 1 else "main.eink_profile_numbered_png"
-        raw_endpoint = "main.eink_profile_rgb565" if page == 1 else "main.eink_profile_numbered_rgb565"
-        values = {"slug": slug} if page == 1 else {"slug": slug, "page": page}
-        pages.append({"page": page, "png": url_for(png_endpoint, **values),
-                      "rgb565": url_for(raw_endpoint, **values)})
-    response = jsonify(profile=slug, page_count=len(pages), pages=pages)
+    pages = _eink_page_urls(slug, target.key, len(frame_set.pages), legacy_urls)
+    response = jsonify(profile=slug, target=target.key, width=target.width, height=target.height,
+                       raw_size=target.raw_size, page_count=len(pages), pages=pages)
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -261,6 +308,36 @@ def eink_profile_numbered_png(slug: str, page: int):
 @bp.get("/eink/<slug>/dashboard-<int:page>.rgb565")
 def eink_profile_numbered_rgb565(slug: str, page: int):
     return _eink_raw_response(slug, page)
+
+
+@bp.get("/eink/<slug>/<target_key>/")
+def eink_target_index(slug: str, target_key: str):
+    return _eink_index_response(slug, target_key)
+
+
+@bp.get("/eink/<slug>/<target_key>/manifest.json")
+def eink_target_manifest(slug: str, target_key: str):
+    return _eink_manifest_response(slug, target_key)
+
+
+@bp.get("/eink/<slug>/<target_key>/dashboard.png")
+def eink_target_png(slug: str, target_key: str):
+    return _eink_png_response(slug, target_key=target_key)
+
+
+@bp.get("/eink/<slug>/<target_key>/dashboard.rgb565")
+def eink_target_rgb565(slug: str, target_key: str):
+    return _eink_raw_response(slug, target_key=target_key)
+
+
+@bp.get("/eink/<slug>/<target_key>/dashboard-<int:page>.png")
+def eink_target_numbered_png(slug: str, target_key: str, page: int):
+    return _eink_png_response(slug, page, target_key)
+
+
+@bp.get("/eink/<slug>/<target_key>/dashboard-<int:page>.rgb565")
+def eink_target_numbered_rgb565(slug: str, target_key: str, page: int):
+    return _eink_raw_response(slug, page, target_key)
 
 
 @bp.get("/health")

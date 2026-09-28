@@ -1,0 +1,12 @@
+Manifest-Version: 1.0
+Main-Class: com.larrytitus.kindledashboard.DashboardKindlet
+Implementation-Title: WMATA Dashboard PW2
+Implementation-Version: 1.7
+Implementation-Vendor: Larry Titus
+Amazon-Cover-Image: cover.jpg
+Extension-List: SDK
+SDK-Extension-Name: com.amazon.kindle.kindlet
+SDK-Specification-Version: 2.0
+Toolbar-Mode: transient
+Toolbar-Style: none
+Font-Size-Mode: pixel

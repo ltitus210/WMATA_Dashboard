@@ -45,7 +45,7 @@ application restart.
 - Optional HTTP Basic authentication for admin and diagnostics
 - Diagnostics for uptime, local time, WMATA requests, cache, and vehicle evidence
 - Confirmed, clean server shutdown from the protected administration interface
-- Generic 600×800 e-reader PNG and little-endian RGB565 frame endpoints
+- Nook 600×800 and Kindle Paperwhite 2 758×1024 e-reader render targets
 - systemd backend and Chromium kiosk units
 
 ## Architecture and data correctness
@@ -134,7 +134,7 @@ Environment variables are documented in `.env.example`:
 | `WMATA_LOG_MAX_BYTES` | `2000000` | Bytes before log rotation |
 | `WMATA_LOG_BACKUP_COUNT` | `3` | Number of rotated logs retained |
 | `WMATA_SECRET_KEY` | development value | Set a random production value |
-| `WMATA_EINK_PROFILE` | `home` | Profile rendered for the e-reader endpoints |
+| `WMATA_EINK_PROFILE` | `home` | Profile rendered for the backward-compatible Nook endpoint aliases |
 | `WMATA_EINK_FRAME_DIR` | `instance/eink` | Atomic last-good PNG/RGB565 frame cache |
 | `WMATA_EINK_REFRESH_SECONDS` | `30` | Minimum seconds between e-ink frame renders |
 | `WMATA_EINK_FONT` | empty | Optional absolute TrueType font path |
@@ -216,12 +216,12 @@ hardware-specific partial/full refresh remains the display driver's responsibili
 
 ## Generic e-reader and e-ink display frames
 
-The server renders a dedicated high-contrast portrait frame for constrained
-e-readers and e-ink displays. The default target is 600×800 RGB565 with
-little-endian, top-to-bottom pixels, but the renderer and conversion code are
-isolated from the normal dashboards so additional display targets can be added
-without device-brand assumptions. The display never runs JavaScript, contacts
-WMATA, or receives the API key. Every configured profile has its own frame URLs.
+The server renders dedicated high-contrast portrait frames for constrained
+e-readers and e-ink displays. Two targets are included: Nook at 600×800 and
+Kindle Paperwhite 2 at 758×1024. Both offer PNG previews and little-endian,
+top-to-bottom RGB565 output. The renderers are isolated from the normal
+dashboards. The display never runs JavaScript, contacts WMATA, or receives the
+API key. Every configured profile and target has its own frame URLs.
 When its routes do not fit in one frame, the server creates additional numbered
 pages; routes with active arrivals are placed first. Warnings are rendered as a
 black text banner, and every page footer shows the last data time, age, and page
@@ -241,34 +241,36 @@ display-frame URLs are:
 ```text
 Page gallery:  http://192.168.1.50:8080/eink/home/
 Page manifest: http://192.168.1.50:8080/eink/home/manifest.json
-PNG page 1:    http://192.168.1.50:8080/eink/home/dashboard.png
-Raw page 1:    http://192.168.1.50:8080/eink/home/dashboard.rgb565
-PNG page 2:    http://192.168.1.50:8080/eink/home/dashboard-2.png
-Raw page 2:    http://192.168.1.50:8080/eink/home/dashboard-2.rgb565
+Nook PNG:      http://192.168.1.50:8080/eink/home/dashboard.png
+Nook raw:      http://192.168.1.50:8080/eink/home/dashboard.rgb565
+PW2 gallery:   http://192.168.1.50:8080/eink/home/kindle-pw2/
+PW2 manifest:  http://192.168.1.50:8080/eink/home/kindle-pw2/manifest.json
+PW2 PNG:       http://192.168.1.50:8080/eink/home/kindle-pw2/dashboard.png
+PW2 raw:       http://192.168.1.50:8080/eink/home/kindle-pw2/dashboard.rgb565
 ```
 
 Replace `home` with any configured profile slug and replace the example address
-with the server's actual LAN IP. The manifest lists the current number of pages
-and the PNG/RGB565 URL for each one, which lets a display discover overflow pages
-without guessing. The unscoped `/eink/dashboard.png` and
-`/eink/dashboard.rgb565` aliases continue to serve page 1 of the profile selected
-by `WMATA_EINK_PROFILE`. These routes use ordinary HTTP for older clients. Keep
-them on a trusted local network; admin authentication does not protect the
-display-frame routes.
+with the server's actual LAN IP. Each manifest reports its target, dimensions,
+raw byte count, page count, and PNG/RGB565 URL for every page. The unscoped
+`/eink/dashboard.png` and `/eink/dashboard.rgb565` aliases, along with the
+existing profile URLs without a target segment, remain the 600×800 Nook target.
+These routes use ordinary HTTP for older clients. Keep them on a trusted local
+network; admin authentication does not protect the display-frame routes.
 
 Generate or refresh the two files manually from the SQLite last-good data:
 
 ```bash
 .venv/bin/python -m app.eink --profile home --output-dir instance/eink
+.venv/bin/python -m app.eink --profile home --target kindle-pw2 --output-dir instance/eink
 ```
 
-The command writes the complete page set under `instance/eink/home/`, using
+The first command writes the Nook page set under `instance/eink/home/`; the
+second writes the PW2 set under `instance/eink/home/kindle-pw2/`. Both use
 `dashboard.png` and `dashboard.rgb565` for page 1 and numbered filenames for
 later pages. Each file is written through a temporary file followed by atomic
 replacement, and the manifest is published last. Requests are serialized,
 completed page sets are cached for `WMATA_EINK_REFRESH_SECONDS`, and a rendering
-or data-state failure preserves the last valid set. Every raw response is a
-headerless, top-to-bottom, 1,200-byte-per-row, little-endian RGB565 frame.
+or data-state failure preserves the last valid set.
 
 Verify the generated artifacts:
 
@@ -305,10 +307,14 @@ Useful URLs:
 - `/health` — lightweight process health JSON
 - `/api/dashboard/<slug>` — local dashboard state consumed by browsers
 - `/eink/<slug>/` — gallery of all e-ink pages for one profile
-- `/eink/<slug>/manifest.json` — machine-readable list of that profile's pages
-- `/eink/<slug>/dashboard.png` — exact 600×800 page 1 preview
-- `/eink/<slug>/dashboard.rgb565` — exact 960,000-byte page 1 RGB565 frame
+- `/eink/<slug>/manifest.json` — Nook target manifest and page list
+- `/eink/<slug>/dashboard.png` — exact 600×800 Nook page 1 preview
+- `/eink/<slug>/dashboard.rgb565` — exact 960,000-byte Nook page 1 RGB565 frame
 - `/eink/<slug>/dashboard-2.png` and `.rgb565` — additional pages as needed
+- `/eink/<slug>/kindle-pw2/` — Kindle Paperwhite 2 target gallery
+- `/eink/<slug>/kindle-pw2/manifest.json` — 758×1024 target manifest
+- `/eink/<slug>/kindle-pw2/dashboard.png` — exact 758×1024 page 1 preview
+- `/eink/<slug>/kindle-pw2/dashboard.rgb565` — exact 1,552,384-byte page 1 RGB565 frame
 
 The bottom of `/admin` includes a **Stop dashboard** control. After confirmation,
 it stops the central polling thread, flushes logging, returns a shutdown status

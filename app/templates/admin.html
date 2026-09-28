@@ -35,8 +35,9 @@
         <a class="button secondary" href="{{ url_for('main.dashboard', slug=profile.slug) }}" target="_blank" rel="noopener">Open board ↗</a>
         <a class="button secondary" href="{{ url_for('main.legacy_dashboard', slug=profile.slug) }}" target="_blank" rel="noopener">Legacy Browser ↗</a>
         <a class="button secondary" href="{{ url_for('main.eink_profile_index', slug=profile.slug) }}" target="_blank" rel="noopener">E-Ink pages ↗</a>
-        <a class="button secondary" href="{{ url_for('main.eink_profile_png', slug=profile.slug) }}" target="_blank" rel="noopener">E-Ink PNG ↗</a>
-        <a class="button secondary" href="{{ url_for('main.eink_profile_rgb565', slug=profile.slug) }}" target="_blank" rel="noopener">E-Ink RGB565 ↗</a>
+        <a class="button secondary" href="{{ url_for('main.eink_profile_png', slug=profile.slug) }}" target="_blank" rel="noopener">Nook PNG ↗</a>
+        <a class="button secondary" href="{{ url_for('main.eink_profile_rgb565', slug=profile.slug) }}" target="_blank" rel="noopener">Nook RGB565 ↗</a>
+        <a class="button secondary" href="{{ url_for('main.eink_target_png', slug=profile.slug, target_key='kindle-pw2') }}" target="_blank" rel="noopener">Kindle PW2 PNG ↗</a>
       </div>
     </div>
     <form class="settings-grid" method="post" action="{{ url_for('main.update_profile', profile_id=profile.id) }}">

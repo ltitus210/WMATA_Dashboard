@@ -14,7 +14,7 @@ from .polling import PollingManager
 from .routes import bp
 from .wmata.client import WMATAClient
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 
 def shutdown_application(app: Flask) -> None:
