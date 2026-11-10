@@ -1,6 +1,8 @@
 from google.transit import gtfs_realtime_pb2
 
 from app.database import Database
+import requests
+
 from app.wmata.client import WMATAClient
 
 
@@ -37,6 +39,44 @@ class NoScheduleSession:
         return NoScheduleResponse()
 
 
+class JsonResponse:
+    def __init__(self, status_code=200, payload=None, headers=None):
+        self.status_code = status_code
+        self._payload = payload if payload is not None else {"Predictions": []}
+        self.headers = headers or {}
+        self.content = b""
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"{self.status_code} response", response=self)
+
+
+class SequenceSession:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def get(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        return self.responses.pop(0)
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+        self.sleeps = []
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
 def test_gtfs_occupancy_is_parsed_and_missing_value_is_omitted(tmp_path):
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.header.gtfs_realtime_version = "2.0"
@@ -67,6 +107,40 @@ def test_missing_schedule_response_is_cached_as_empty_data(tmp_path):
     assert result["http_status"] == 400
     assert result["last_error"] is None
     assert db.meta()["last_schedule_unavailable"]["key"] == "1003048:2026-08-23"
+
+
+def test_requests_are_paced_across_cache_keys(tmp_path):
+    db = Database(str(tmp_path / "client.sqlite3"))
+    db.initialize()
+    clock = FakeClock()
+    session = SequenceSession([JsonResponse(), JsonResponse()])
+    client = WMATAClient("test-key", db, session, min_request_interval=0.25,
+                         clock=clock, sleep=clock.sleep)
+
+    client.predictions("1001")
+    client.predictions("1002")
+
+    assert len(session.calls) == 2
+    assert clock.sleeps == [0.25]
+
+
+def test_rate_limit_honors_retry_after_and_retries_once(tmp_path):
+    db = Database(str(tmp_path / "client.sqlite3"))
+    db.initialize()
+    clock = FakeClock()
+    session = SequenceSession([
+        JsonResponse(429, headers={"Retry-After": "2"}),
+        JsonResponse(200, {"Predictions": []}),
+    ])
+    client = WMATAClient("test-key", db, session, min_request_interval=0.25,
+                         clock=clock, sleep=clock.sleep)
+
+    result = client.predictions("1001")
+
+    assert result["http_status"] == 200
+    assert len(session.calls) == 2
+    assert clock.sleeps == [2.0]
+    assert db.meta()["last_wmata_rate_limit"]["retry_after_seconds"] == 2.0
 
 
 def test_stop_discovery_falls_back_to_live_prediction_variants(tmp_path):

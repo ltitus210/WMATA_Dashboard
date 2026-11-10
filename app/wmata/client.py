@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 import logging
+import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 import requests
 
@@ -31,10 +33,64 @@ class WMATAClient:
         "rail_predictions": ("/StationPrediction.svc/json/GetPrediction/{codes}", "Trains", 20),
     }
 
-    def __init__(self, api_key: str, db: Database, session: requests.Session | None = None):
+    def __init__(self, api_key: str, db: Database, session: requests.Session | None = None,
+                 min_request_interval: float = 0.25,
+                 clock: Callable[[], float] = time.monotonic,
+                 sleep: Callable[[float], None] = time.sleep):
         self.api_key = api_key
         self.db = db
         self.session = session or requests.Session()
+        self.min_request_interval = max(0.0, min_request_interval)
+        self._clock = clock
+        self._sleep = sleep
+        self._request_lock = threading.Lock()
+        self._next_request_at = 0.0
+        self._rate_limit_until = 0.0
+
+    def _wait_for_request_slot(self) -> None:
+        """Serialize and pace request starts across polling and admin threads."""
+        with self._request_lock:
+            now = self._clock()
+            ready_at = max(self._next_request_at, self._rate_limit_until)
+            if ready_at > now:
+                self._sleep(ready_at - now)
+                now = self._clock()
+            self._next_request_at = now + self.min_request_interval
+
+    @staticmethod
+    def _retry_after_seconds(response: requests.Response, default: float = 5.0) -> float:
+        value = str(getattr(response, "headers", {}).get("Retry-After", "")).strip()
+        if not value:
+            return default
+        try:
+            return max(0.0, float(value))
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(value)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=UTC)
+                return max(0.0, (retry_at - datetime.now(UTC)).total_seconds())
+            except (TypeError, ValueError, OverflowError):
+                return default
+
+    def _get(self, url: str, **kwargs) -> requests.Response:
+        """Issue a paced request and retry one 429 after the server cooldown."""
+        for attempt in range(2):
+            self._wait_for_request_slot()
+            response = self.session.get(url, **kwargs)
+            if response.status_code != 429:
+                return response
+            retry_after = self._retry_after_seconds(response)
+            with self._request_lock:
+                self._rate_limit_until = max(self._rate_limit_until, self._clock() + retry_after)
+            self.db.set_meta("last_wmata_rate_limit", {
+                "at": datetime.now().astimezone().isoformat(),
+                "retry_after_seconds": round(retry_after, 3),
+                "url": url,
+            })
+            if attempt == 0:
+                LOG.warning("WMATA rate limit reached; retrying after %.1f seconds", retry_after)
+        return response
 
     def fetch(self, name: str, key: str, params: dict | None = None, force: bool = False) -> dict:
         cached = self.db.get_cache(name, key)
@@ -50,7 +106,7 @@ class WMATAClient:
             path = path.format(codes=key)
         started = time.monotonic()
         try:
-            response = self.session.get(
+            response = self._get(
                 self.BASE + path,
                 params=params,
                 headers={"api_key": self.api_key, "Accept": "application/json"},
@@ -120,7 +176,7 @@ class WMATAClient:
         started = time.monotonic()
         try:
             from google.transit import gtfs_realtime_pb2
-            response = self.session.get(
+            response = self._get(
                 self.BASE + "/gtfs/bus-gtfsrt-vehiclepositions.pb",
                 headers={"api_key": self.api_key, "Accept": "application/x-protobuf"}, timeout=(4, 12),
             )

@@ -14,7 +14,7 @@ from .polling import PollingManager
 from .routes import bp
 from .wmata.client import WMATAClient
 
-VERSION = "1.2.0"
+VERSION = "1.3.1"
 
 
 def shutdown_application(app: Flask) -> None:
@@ -59,7 +59,11 @@ def create_app(overrides: dict | None = None) -> Flask:
     db.seed_default_profile()
     app.extensions["database"] = db
     stored_api_key = db.get_secret("wmata_api_key")
-    app.extensions["wmata"] = WMATAClient(settings.api_key or stored_api_key, db)
+    app.extensions["wmata"] = WMATAClient(
+        settings.api_key or stored_api_key,
+        db,
+        min_request_interval=settings.wmata_request_interval,
+    )
     app.extensions["eink_frames"] = EInkFrameService(
         settings.eink_frame_dir, settings.eink_refresh_seconds, settings.eink_font
     )

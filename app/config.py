@@ -30,6 +30,7 @@ class Settings:
     eink_frame_dir: str = "instance/eink"
     eink_refresh_seconds: int = 30
     eink_font: str = ""
+    wmata_request_interval: float = 0.25
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -55,4 +56,5 @@ class Settings:
             eink_frame_dir=str(eink_frame_dir.resolve()),
             eink_refresh_seconds=max(5, int(os.getenv("WMATA_EINK_REFRESH_SECONDS", "30"))),
             eink_font=os.getenv("WMATA_EINK_FONT", "").strip(),
+            wmata_request_interval=max(0.0, float(os.getenv("WMATA_REQUEST_INTERVAL", "0.25"))),
         )

@@ -3,12 +3,19 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 import json
+import logging
 import os
+from pathlib import Path
+import shutil
 import sqlite3
 import threading
 from typing import Any, Iterator
 
 from .logging_manager import format_bytes
+
+
+LOG = logging.getLogger(__name__)
+DURABLE_TABLES = ("profiles", "entries", "app_meta", "secret_values")
 
 
 SCHEMA = """
@@ -63,21 +70,109 @@ class Database:
     def __init__(self, path: str):
         self.path = path
         self._write_lock = threading.RLock()
+        self.recovery_backup: str | None = None
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.path, timeout=10)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
+        # FULL is intentionally stronger than SQLite's WAL-mode default. This
+        # database may run on small always-on hosts that can lose power abruptly.
+        conn.execute("PRAGMA synchronous=FULL")
+        conn.execute("PRAGMA fullfsync=ON")
+        conn.execute("PRAGMA checkpoint_fullfsync=ON")
+        conn.execute("PRAGMA busy_timeout=10000")
         try:
             yield conn
             conn.commit()
         finally:
             conn.close()
 
+    def _database_is_healthy(self) -> bool:
+        path = Path(self.path)
+        if not path.exists() or path.stat().st_size == 0:
+            return True
+        try:
+            with sqlite3.connect(self.path, timeout=10) as conn:
+                result = conn.execute("PRAGMA quick_check").fetchall()
+            return result == [("ok",)]
+        except sqlite3.DatabaseError:
+            return False
+
+    def _next_backup_path(self) -> Path:
+        source = Path(self.path)
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        candidate = source.with_name(f"{source.name}.corrupt-{timestamp}")
+        counter = 1
+        while candidate.exists():
+            candidate = source.with_name(f"{source.name}.corrupt-{timestamp}-{counter}")
+            counter += 1
+        return candidate
+
+    def _recover_corrupt_database(self) -> Path:
+        source_path = Path(self.path)
+        backup_path = self._next_backup_path()
+        temporary_path = source_path.with_name(f".{source_path.name}.recovered-{os.getpid()}")
+        shutil.copy2(source_path, backup_path)
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(f"{source_path}{suffix}")
+            if sidecar.exists():
+                shutil.copy2(sidecar, Path(f"{backup_path}{suffix}"))
+
+        recovered: dict[str, tuple[list[str], list[tuple]]] = {}
+        try:
+            with sqlite3.connect(self.path, timeout=10) as source:
+                for table in DURABLE_TABLES:
+                    columns = [row[1] for row in source.execute(f"PRAGMA table_info({table})")]
+                    if not columns:
+                        raise sqlite3.DatabaseError(f"Required table {table} is unavailable")
+                    rows = source.execute(f"SELECT {','.join(columns)} FROM {table}").fetchall()
+                    recovered[table] = (columns, rows)
+
+            if temporary_path.exists():
+                temporary_path.unlink()
+            with sqlite3.connect(temporary_path) as target:
+                target.execute("PRAGMA synchronous=FULL")
+                target.execute("PRAGMA fullfsync=ON")
+                target.execute("PRAGMA checkpoint_fullfsync=ON")
+                target.executescript(SCHEMA)
+                target.execute("PRAGMA foreign_keys=ON")
+                for table in DURABLE_TABLES:
+                    columns, rows = recovered[table]
+                    placeholders = ",".join("?" for _ in columns)
+                    target.executemany(
+                        f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders})", rows
+                    )
+                target.commit()
+                check = target.execute("PRAGMA integrity_check").fetchall()
+                if check != [("ok",)]:
+                    raise sqlite3.DatabaseError(f"Recovered database failed integrity check: {check[:3]}")
+                target.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+            os.chmod(temporary_path, 0o600)
+            os.replace(temporary_path, source_path)
+            for suffix in ("-wal", "-shm"):
+                sidecar = Path(f"{source_path}{suffix}")
+                if sidecar.exists():
+                    sidecar.unlink()
+            return backup_path
+        except Exception:
+            LOG.exception("Automatic database recovery failed; original remains at %s", self.path)
+            if temporary_path.exists():
+                temporary_path.unlink()
+            raise
+
     def initialize(self) -> None:
-        from pathlib import Path
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        if not self._database_is_healthy():
+            LOG.error("SQLite integrity check failed for %s; starting durable-data recovery", self.path)
+            backup = self._recover_corrupt_database()
+            self.recovery_backup = str(backup)
+            LOG.warning(
+                "Recovered profiles, entries, settings, and credentials; reset transient cache/history. "
+                "Damaged database saved at %s", backup,
+            )
         with self._write_lock, self.connect() as conn:
             conn.executescript(SCHEMA)
             columns = {row[1] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
@@ -85,6 +180,14 @@ class Database:
                 conn.execute("ALTER TABLE profiles ADD COLUMN text_size TEXT NOT NULL DEFAULT 'medium'")
             if "card_columns" not in columns:
                 conn.execute("ALTER TABLE profiles ADD COLUMN card_columns INTEGER NOT NULL DEFAULT 1")
+            if self.recovery_backup:
+                now = utcnow().isoformat()
+                value = json.dumps({"at": now, "backup": os.path.basename(self.recovery_backup)})
+                conn.execute(
+                    "INSERT INTO app_meta(key,value,updated_at) VALUES(?,?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at",
+                    ("database_recovery", value, now),
+                )
         os.chmod(self.path, 0o600)
 
     def seed_default_profile(self) -> None:

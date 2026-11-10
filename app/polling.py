@@ -68,14 +68,34 @@ class PollingManager:
                 pass
         now_local = datetime.now(EASTERN)
         service_dates = schedule_service_dates(now_local)
-        for stop_id in {e["location_id"] for e in bus_entries}:
-            prediction_cache = self.client.predictions(stop_id, force)
-            predictions = prediction_cache["payload"].get("Predictions", []) if isinstance(prediction_cache["payload"], dict) else []
-            for service_date in service_dates:
-                self.client.stop_schedule(stop_id, service_date, force)
-            for route in {e["route"] for e in bus_entries if e["location_id"] == stop_id and e["route"]}:
-                position_cache = self.client.positions(route, force)
-                positions = position_cache["payload"]
+        predictions_by_stop: dict[str, list[dict]] = {}
+        for stop_id in sorted({e["location_id"] for e in bus_entries}):
+            try:
+                prediction_cache = self.client.predictions(stop_id, force)
+                payload = prediction_cache["payload"]
+                predictions_by_stop[stop_id] = payload.get("Predictions", []) if isinstance(payload, dict) else []
+            except WMATAError:
+                predictions_by_stop[stop_id] = []
+            for service_date in sorted(service_dates):
+                try:
+                    self.client.stop_schedule(stop_id, service_date, force)
+                except WMATAError:
+                    # Schedule data supplements live predictions; one missing date
+                    # must not abort updates for every other configured stop.
+                    continue
+
+        positions_by_route: dict[str, list[dict]] = {}
+        for route in sorted({e["route"] for e in bus_entries if e["route"]}):
+            try:
+                positions_by_route[route] = self.client.positions(route, force)["payload"]
+            except WMATAError:
+                positions_by_route[route] = []
+
+        for stop_id in sorted({e["location_id"] for e in bus_entries}):
+            predictions = predictions_by_stop.get(stop_id, [])
+            for route in sorted({e["route"] for e in bus_entries
+                                 if e["location_id"] == stop_id and e["route"]}):
+                positions = positions_by_route.get(route, [])
                 stop = stops_by_id.get(stop_id)
                 if not stop:
                     continue
@@ -85,8 +105,11 @@ class PollingManager:
                     pred = prediction_keys.get(key)
                     if str(position.get("RouteID", "")) == route:
                         self.tracker.observe(stop, position, pred.get("Minutes") if pred else None, pred is not None)
-        for code in {e["location_id"] for e in rail_entries}:
-            self.client.discover_station(code, force)
+        for code in sorted({e["location_id"] for e in rail_entries}):
+            try:
+                self.client.discover_station(code, force)
+            except WMATAError:
+                continue
         self.tracker.expire()
         self.db.set_meta("last_poll_completed", datetime.now().astimezone().isoformat())
 

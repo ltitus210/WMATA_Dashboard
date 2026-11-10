@@ -100,6 +100,14 @@ stops, routes, and stations are 24 hours. Failed refreshes preserve last-good
 payloads and attach an error. The board stays usable during an outage and displays
 the age/warning. HTTP requests have connection/read timeouts, the poller catches
 malformed responses, and systemd restarts the service after process failure.
+All WMATA request starts share a process-wide pacing gate. HTTP 429 responses
+honor WMATA's `Retry-After` value and are retried once; a single unavailable
+prediction, schedule, or position feed no longer aborts the remaining poll cycle.
+SQLite uses WAL journaling with `synchronous=FULL` and requests full filesystem
+synchronization on platforms that support it. At startup the application runs an
+integrity check; if corruption is found, it saves the damaged database, recovers
+profiles, configured rows, settings, and credentials into a clean file, and
+resets only the regenerable WMATA cache and vehicle history.
 
 ### Time and service days
 
@@ -128,6 +136,7 @@ Environment variables are documented in `.env.example`:
 | `WMATA_DATABASE` | `instance/wmata-dashboard.sqlite3` | Persistent SQLite file |
 | `WMATA_ADMIN_USER/PASSWORD` | empty | Enables Basic auth when user is set |
 | `WMATA_POLL_INTERVAL` | `20` | Central poll cadence in seconds (minimum 10) |
+| `WMATA_REQUEST_INTERVAL` | `0.25` | Minimum spacing between WMATA request starts; prevents startup bursts and HTTP 429 responses |
 | `WMATA_START_POLLER` | `true` | Disable for tests or one-shot management |
 | `WMATA_LOG_LEVEL` | `INFO` | Python logging level |
 | `WMATA_LOG_FILE` | `instance/logs/wmata-dashboard.log` | Rotating application log; records older than 24 hours are pruned |
@@ -355,8 +364,15 @@ reads, and frame response headers.
   raising a profile threshold is possible, but hiding stale state is not.
 - **`Last —`:** this is expected until the running process observes a vehicle near
   the stop and later obtains enough passage evidence.
-- **Rate limiting/outage:** increase central poll interval. Existing clients share
-  one cache and do not multiply WMATA calls.
+- **Rate limiting/outage:** request starts are paced automatically. If an account
+  tier still returns HTTP 429, increase `WMATA_REQUEST_INTERVAL` (for example,
+  to `0.5`) and/or `WMATA_POLL_INTERVAL`. Existing clients share one cache and
+  do not multiply WMATA calls.
+- **Database corruption:** restart the application. Startup recovery preserves
+  durable configuration, saves the damaged file beside the database with a
+  `.corrupt-<timestamp>` suffix, and rebuilds transient cache/history. These
+  backups contain credentials and must remain private. Repeated corruption can
+  indicate a filesystem, storage, or power-stability problem.
 - **Clock errors:** enable NTP (`timedatectl`) and confirm `America/New_York` data is
   installed. The application itself does not mutate the host timezone.
 
